@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Global Form Input Styles for High Contrast */
+input, select, textarea {
+  color: #0f172a !important; /* text-slate-900 */
+}
+
+input::placeholder, select::placeholder, textarea::placeholder {
+  color: #94a3b8 !important; /* placeholder-slate-400 */
+}
+
+.dark input, .dark select, .dark textarea {
+  color: #f8fafc !important; /* text-slate-50 */
+}
+
+.dark input::placeholder, .dark select::placeholder, .dark textarea::placeholder {
+  color: #64748b !important; /* placeholder-slate-500 */
+}
