@@ -1,0 +1,42 @@
+services:
+  # Laravel Backend API Service
+  - type: web
+    name: garment-pos-backend
+    env: docker
+    rootDir: backend
+    plan: free
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_KEY
+        generate: true
+      - key: DB_CONNECTION
+        value: pgsql
+      - key: DB_URL
+        fromDatabase:
+          name: garment-pos-db
+          property: connectionString
+
+  # React Frontend Static Site
+  - type: static
+    name: garment-pos-frontend
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    routes:
+      # Rewrite all routes to index.html to support React Router SPA navigation
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: garment-pos-backend
+          type: web
+          property: host
+
+databases:
+  - name: garment-pos-db
+    plan: free
