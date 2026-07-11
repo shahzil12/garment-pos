@@ -1,11 +1,11 @@
 # --- Stage 1: Install Composer Dependencies ---
 FROM serversideup/php:8.3-cli AS composer-build
 WORKDIR /app
-COPY composer.json composer.lock ./
+COPY --chown=www-data:www-data composer.json composer.lock ./
 RUN composer install --no-dev --no-scripts --no-autoloader --prefer-dist
 
 # Finish autoloading configuration
-COPY . .
+COPY --chown=www-data:www-data . .
 RUN composer dump-autoload --optimize --no-dev --classmap-authoritative
 
 # --- Stage 2: Build Frontend Assets ---
