@@ -93,7 +93,8 @@ const Settings = () => {
 
     // Download backup file
     const downloadBackupFile = (filename) => {
-        window.open(`http://127.0.0.1:8000/api/backups/${filename}?token=${localStorage.getItem('token')}`, '_blank');
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+        window.open(`${apiUrl}/backups/${filename}?token=${localStorage.getItem('token')}`, '_blank');
     };
 
     // Delete backup
