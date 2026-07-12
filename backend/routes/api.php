@@ -19,22 +19,6 @@ use App\Http\Controllers\BackupController;
 // ==========================================
 Route::post('/login', [AuthController::class, 'login']);
 
-Route::get('/seed-database', function () {
-    try {
-        \Illuminate\Support\Facades\Artisan::call('db:seed', ['--force' => true]);
-        return response()->json([
-            'success' => true,
-            'message' => 'Database seeded successfully!',
-            'output' => \Illuminate\Support\Facades\Artisan::output()
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Error seeding database: ' . $e->getMessage()
-        ], 500);
-    }
-});
-
 // ==========================================
 // Protected Routes
 // ==========================================
