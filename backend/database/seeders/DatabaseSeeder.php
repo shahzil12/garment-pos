@@ -29,6 +29,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Prevent duplicate seeding
+        if (User::where('email', 'admin@pos.com')->exists()) {
+            return;
+        }
+
         // 1. Users
         $admin = User::create([
             'name' => 'Admin User',
