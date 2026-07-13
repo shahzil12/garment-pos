@@ -8,8 +8,8 @@ export const SettingsProvider = ({ children }) => {
     const { isAuthenticated } = useAuth();
     const [settings, setSettings] = useState({
         shop_name: 'Garment POS',
-        currency_symbol: '$',
-        currency_code: 'USD',
+        currency_symbol: 'Rs.',
+        currency_code: 'PKR',
         tax_rate: '0',
         shop_email: '',
         shop_phone: '',
@@ -44,7 +44,9 @@ export const SettingsProvider = ({ children }) => {
 
     const formatCurrency = (amount) => {
         const num = parseFloat(amount) || 0;
-        return `${settings.currency_symbol || '$'}${num.toFixed(2)}`;
+        const symbol = settings.currency_symbol || 'Rs.';
+        const space = symbol === '$' ? '' : ' ';
+        return `${symbol}${space}${num.toFixed(2)}`;
     };
 
     return (

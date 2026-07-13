@@ -57,8 +57,8 @@ class DatabaseSeeder extends Seeder
             'shop_email' => 'info@voguegarments.com',
             'shop_phone' => '+1 (555) 019-2834',
             'shop_address' => '456 Fashion Boulevard, Suite 100, New York, NY 10001',
-            'currency_symbol' => '$',
-            'currency_code' => 'USD',
+            'currency_symbol' => 'Rs.',
+            'currency_code' => 'PKR',
             'tax_rate' => '8.25', // 8.25%
             'receipt_header' => 'Welcome to Vogue Garments!',
             'receipt_footer' => 'Thank you for shopping with us! Ref: Returnable in 14 days.',

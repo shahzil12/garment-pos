@@ -215,7 +215,7 @@ const Settings = () => {
                                         value={shopForm.currency_symbol}
                                         onChange={(e) => setShopForm({ ...shopForm, currency_symbol: e.target.value })}
                                         className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm text-center font-bold focus:outline-none"
-                                        placeholder="$"
+                                        placeholder="Rs."
                                     />
                                 </div>
                                 <div>
