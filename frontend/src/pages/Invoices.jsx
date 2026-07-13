@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import html2canvas from 'html2canvas';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import { FileText, Eye, Printer, RotateCcw, X, AlertTriangle } from 'lucide-react';
@@ -73,6 +74,63 @@ const Invoices = () => {
 
     const triggerPrint = () => {
         window.print();
+    };
+
+    const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
+
+    const shareInvoiceOnWhatsApp = async () => {
+        const element = document.getElementById('printable-area');
+        if (!element) return;
+
+        setSharingWhatsApp(true);
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true,
+            });
+
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    alert('Failed to generate invoice image.');
+                    setSharingWhatsApp(false);
+                    return;
+                }
+
+                const file = new File([blob], `invoice_${selectedInvoice.invoice_number}.png`, { type: 'image/png' });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: `Invoice ${selectedInvoice.invoice_number}`,
+                            text: `Here is your invoice from ${settings.shop_name}`,
+                        });
+                        setSharingWhatsApp(false);
+                        return;
+                    } catch (shareErr) {
+                        console.log('Native share failed:', shareErr);
+                    }
+                }
+
+                try {
+                    const data = [new ClipboardItem({ 'image/png': blob })];
+                    await navigator.clipboard.write(data);
+                    alert(`Invoice image copied to clipboard! \n\nPlease paste (Ctrl+V) in WhatsApp to send.`);
+                } catch (clipErr) {
+                    console.error('Clipboard copy failed:', clipErr);
+                }
+
+                const text = `${settings.shop_name} Receipt ${selectedInvoice?.invoice_number}: Total ${formatCurrency(selectedInvoice?.payable_amount)}`;
+                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                setSharingWhatsApp(false);
+            }, 'image/png');
+        } catch (err) {
+            console.error('Failed to capture invoice:', err);
+            alert('Failed to generate invoice image.');
+            setSharingWhatsApp(false);
+        }
     };
 
     const columns = [
@@ -357,6 +415,13 @@ const Invoices = () => {
                                     <span>Void & Refund Invoice</span>
                                 </button>
                             )}
+                            <button
+                                onClick={shareInvoiceOnWhatsApp}
+                                disabled={sharingWhatsApp}
+                                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 flex items-center gap-1.5 cursor-pointer"
+                            >
+                                {sharingWhatsApp ? 'Generating...' : 'Share on WhatsApp'}
+                            </button>
                             <button
                                 onClick={triggerPrint}
                                 className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-md flex items-center gap-2 transition"

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import html2canvas from 'html2canvas';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
@@ -355,6 +356,68 @@ const POS = () => {
     // Printing function
     const triggerBrowserPrint = () => {
         window.print();
+    };
+
+    const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
+
+    const shareInvoiceOnWhatsApp = async () => {
+        const element = document.getElementById('printable-area');
+        if (!element) return;
+
+        setSharingWhatsApp(true);
+        try {
+            // Render the DOM node to a canvas
+            const canvas = await html2canvas(element, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true,
+            });
+
+            // Convert canvas to blob
+            canvas.toBlob(async (blob) => {
+                if (!blob) {
+                    alert('Failed to generate invoice image.');
+                    setSharingWhatsApp(false);
+                    return;
+                }
+
+                const file = new File([blob], `invoice_${completedInvoice.invoice_number}.png`, { type: 'image/png' });
+
+                // Try native share first (works on mobile devices)
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    try {
+                        await navigator.share({
+                            files: [file],
+                            title: `Invoice ${completedInvoice.invoice_number}`,
+                            text: `Here is your invoice from ${settings.shop_name}`,
+                        });
+                        setSharingWhatsApp(false);
+                        return;
+                    } catch (shareErr) {
+                        console.log('Native share failed:', shareErr);
+                    }
+                }
+
+                // If native share is not supported, write to clipboard as image
+                try {
+                    const data = [new ClipboardItem({ 'image/png': blob })];
+                    await navigator.clipboard.write(data);
+                    alert(`Invoice image copied to clipboard! \n\nPlease paste (Ctrl+V) in WhatsApp to send.`);
+                } catch (clipErr) {
+                    console.error('Clipboard copy failed:', clipErr);
+                }
+
+                // Open WhatsApp Web/API
+                const text = `Vogue Garments Receipt ${completedInvoice?.invoice_number}: Total ${formatCurrency(completedInvoice?.payable_amount)}`;
+                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+                setSharingWhatsApp(false);
+            }, 'image/png');
+        } catch (err) {
+            console.error('Failed to capture invoice:', err);
+            alert('Failed to generate invoice image.');
+            setSharingWhatsApp(false);
+        }
     };
 
     return (
@@ -882,14 +945,11 @@ const POS = () => {
                     {/* Print / Action Row */}
                     <div className="flex justify-end gap-3 pt-3 border-t dark:border-slate-800">
                         <button
-                            onClick={() => {
-                                // Simple Web Share Link
-                                const text = `Vogue Garments Receipt ${completedInvoice?.invoice_number}: Total ${formatCurrency(completedInvoice?.payable_amount)}`;
-                                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
-                            }}
-                            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-all"
+                            onClick={shareInvoiceOnWhatsApp}
+                            disabled={sharingWhatsApp}
+                            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition-all disabled:opacity-50 cursor-pointer"
                         >
-                            Share on WhatsApp
+                            {sharingWhatsApp ? 'Generating Image...' : 'Share on WhatsApp'}
                         </button>
                         <button
                             onClick={triggerBrowserPrint}
