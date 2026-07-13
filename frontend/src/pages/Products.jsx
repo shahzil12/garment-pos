@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
+import Barcode from '../components/Barcode';
 import { useSettings } from '../context/SettingsContext';
-import { Plus, Edit, Trash2, Tag, Layers, Shirt, Image } from 'lucide-react';
+import { Plus, Edit, Trash2, Tag, Layers, Shirt, Image, Barcode as BarcodeIcon } from 'lucide-react';
 
 const Products = () => {
     const { formatCurrency } = useSettings();
@@ -31,6 +32,22 @@ const Products = () => {
     const [editingProduct, setEditingProduct] = useState(null);
     const [editingCategory, setEditingCategory] = useState(null);
     const [editingBrand, setEditingBrand] = useState(null);
+
+    // Barcode states
+    const [barcodeModalOpen, setBarcodeModalOpen] = useState(false);
+    const [selectedProductForBarcode, setSelectedProductForBarcode] = useState(null);
+
+    const generateEan13 = () => {
+        const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
+        const barcodeWithoutCheck = '880' + randomDigits;
+        let sum = 0;
+        for (let i = 0; i < 12; i++) {
+            const digit = parseInt(barcodeWithoutCheck[i]);
+            sum += (i % 2 === 0) ? digit : digit * 3;
+        }
+        const checkDigit = (10 - (sum % 10)) % 10;
+        return barcodeWithoutCheck + checkDigit;
+    };
 
     // Form fields
     const [prodForm, setProdForm] = useState({
@@ -312,6 +329,13 @@ const Products = () => {
                         <Edit className="w-4 h-4" />
                     </button>
                     <button
+                        onClick={() => { setSelectedProductForBarcode(row); setBarcodeModalOpen(true); }}
+                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-500 hover:text-emerald-600 transition"
+                        title="Print Barcode Label"
+                    >
+                        <BarcodeIcon className="w-4 h-4" />
+                    </button>
+                    <button
                         onClick={() => deleteProduct(val)}
                         className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-500 hover:text-red-600 transition"
                     >
@@ -552,13 +576,26 @@ const Products = () => {
                     <div className="grid grid-cols-3 gap-4">
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Barcode</label>
-                            <input
-                                type="text"
-                                value={prodForm.barcode}
-                                onChange={(e) => setProdForm({ ...prodForm, barcode: e.target.value })}
-                                className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
-                                placeholder="Scan/Type Barcode"
-                            />
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={prodForm.barcode}
+                                    onChange={(e) => setProdForm({ ...prodForm, barcode: e.target.value })}
+                                    className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
+                                    placeholder="Scan/Type Barcode"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        const code = generateEan13();
+                                        setProdForm({ ...prodForm, barcode: code });
+                                    }}
+                                    className="px-3 py-2 bg-indigo-550/10 hover:bg-indigo-550/20 text-indigo-600 dark:text-indigo-400 border border-indigo-600/20 rounded-xl text-xs font-bold transition flex items-center justify-center cursor-pointer shrink-0"
+                                    title="Auto-generate unique EAN-13 barcode"
+                                >
+                                    Generate
+                                </button>
+                            </div>
                         </div>
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Category *</label>
@@ -756,6 +793,79 @@ const Products = () => {
                         Save Brand
                     </button>
                 </form>
+            </Modal>
+
+            {/* Modal: Barcode Viewer & Print */}
+            <Modal
+                isOpen={barcodeModalOpen}
+                onClose={() => setBarcodeModalOpen(false)}
+                title="Barcode Label Viewer"
+                size="md"
+            >
+                {selectedProductForBarcode && (
+                    <div className="space-y-6">
+                        <div id="printable-barcode-card" className="p-6 bg-white border border-slate-200 rounded-2xl text-center max-w-sm mx-auto shadow-sm">
+                            <h4 className="font-extrabold text-slate-800 text-sm tracking-tight">{selectedProductForBarcode.name}</h4>
+                            <p className="text-xs text-slate-500 font-semibold mt-1">
+                                {selectedProductForBarcode.category?.name || 'Garment'} | {selectedProductForBarcode.brand?.name || 'Vogue'}
+                            </p>
+                            
+                            <div className="my-5 flex justify-center bg-white p-2 rounded-xl">
+                                <Barcode value={selectedProductForBarcode.barcode} format="CODE128" />
+                            </div>
+
+                            <p className="font-black text-lg text-indigo-600 tracking-tight">
+                                {formatCurrency(selectedProductForBarcode.selling_price)}
+                            </p>
+                            <p className="text-[10px] font-bold text-slate-400 mt-1">
+                                SKU: {selectedProductForBarcode.sku}
+                            </p>
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => {
+                                    const style = document.createElement('style');
+                                    style.innerHTML = `
+                                        @media print {
+                                            body * {
+                                                visibility: hidden;
+                                            }
+                                            #printable-barcode-card, #printable-barcode-card * {
+                                                visibility: visible;
+                                            }
+                                            #printable-barcode-card {
+                                                position: absolute;
+                                                left: 50%;
+                                                top: 50%;
+                                                transform: translate(-50%, -50%) scale(1.5);
+                                                border: none !important;
+                                                box-shadow: none !important;
+                                                background: white !important;
+                                                color: black !important;
+                                            }
+                                        }
+                                    `;
+                                    document.head.appendChild(style);
+                                    window.print();
+                                    document.head.removeChild(style);
+                                }}
+                                className="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl text-sm font-semibold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4.5 h-4.5">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.821V21h10.56v-7.179m-10.56 0a3.75 3.75 0 1 1 7.5 0M10.56 13.821h3.375m0 0V21m-3.375-7.179V21M3 16.5v-3.75A3.75 3.75 0 0 1 6.75 9h10.5A3.75 3.75 0 0 1 21 12.75v3.75m-3 0h3m-3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m0 0a1.5 1.5 0 0 1-3 0M3 16.5h3m-3 0a1.5 1.5 0 0 0 3 0m9.75 0h3.75m-3.75 0a1.5 1.5 0 0 1-3 0H7.5" />
+                                </svg>
+                                <span>Print Barcode Label</span>
+                            </button>
+                            <button
+                                onClick={() => setBarcodeModalOpen(false)}
+                                className="w-1/3 py-3 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl text-sm font-semibold transition cursor-pointer"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                )}
             </Modal>
 
         </div>
