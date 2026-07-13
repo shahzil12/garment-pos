@@ -16,6 +16,11 @@ export const SettingsProvider = ({ children }) => {
         shop_address: '',
         receipt_header: '',
         receipt_footer: '',
+        cashier_can_access_dashboard: '1',
+        cashier_can_access_pos: '1',
+        cashier_can_access_products: '1',
+        cashier_can_access_customers: '1',
+        cashier_can_access_invoices: '1',
     });
     const [settingsLoading, setSettingsLoading] = useState(false);
 

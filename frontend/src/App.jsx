@@ -1,8 +1,8 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
-import { SettingsProvider } from './context/SettingsContext';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
 
 // Layout
 import Layout from './components/Layout';
@@ -24,6 +24,8 @@ import Settings from './pages/Settings';
 // Protected Route Guard Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { isAuthenticated, loading, role } = useAuth();
+    const { settings } = useSettings();
+    const location = useLocation();
 
     if (loading) {
         return (
@@ -39,6 +41,30 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
     if (allowedRoles && !allowedRoles.includes(role)) {
         return <Navigate to="/" replace />;
+    }
+
+    // Role-based cashier settings restriction
+    if (role === 'cashier') {
+        const path = location.pathname;
+        if (path === '/' && settings.cashier_can_access_dashboard === '0') {
+            if (settings.cashier_can_access_pos !== '0') return <Navigate to="/pos" replace />;
+            if (settings.cashier_can_access_products !== '0') return <Navigate to="/products" replace />;
+            if (settings.cashier_can_access_customers !== '0') return <Navigate to="/customers" replace />;
+            if (settings.cashier_can_access_invoices !== '0') return <Navigate to="/invoices" replace />;
+            return <Navigate to="/login" replace />;
+        }
+        if (path === '/pos' && settings.cashier_can_access_pos === '0') {
+            return <Navigate to="/" replace />;
+        }
+        if (path === '/products' && settings.cashier_can_access_products === '0') {
+            return <Navigate to="/" replace />;
+        }
+        if (path === '/customers' && settings.cashier_can_access_customers === '0') {
+            return <Navigate to="/" replace />;
+        }
+        if (path === '/invoices' && settings.cashier_can_access_invoices === '0') {
+            return <Navigate to="/" replace />;
+        }
     }
 
     return <Layout>{children}</Layout>;

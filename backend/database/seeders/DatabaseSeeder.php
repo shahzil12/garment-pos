@@ -62,6 +62,11 @@ class DatabaseSeeder extends Seeder
             'tax_rate' => '8.25', // 8.25%
             'receipt_header' => 'Welcome to Vogue Garments!',
             'receipt_footer' => 'Thank you for shopping with us! Ref: Returnable in 14 days.',
+            'cashier_can_access_dashboard' => '1',
+            'cashier_can_access_pos' => '1',
+            'cashier_can_access_products' => '1',
+            'cashier_can_access_customers' => '1',
+            'cashier_can_access_invoices' => '1',
         ];
 
         foreach ($settings as $key => $value) {

@@ -17,6 +17,11 @@ const Settings = () => {
         shop_address: '',
         receipt_header: '',
         receipt_footer: '',
+        cashier_can_access_dashboard: '1',
+        cashier_can_access_pos: '1',
+        cashier_can_access_products: '1',
+        cashier_can_access_customers: '1',
+        cashier_can_access_invoices: '1',
     });
 
     const [backups, setBackups] = useState([]);
@@ -37,6 +42,11 @@ const Settings = () => {
                 shop_address: globalSettings.shop_address || '',
                 receipt_header: globalSettings.receipt_header || '',
                 receipt_footer: globalSettings.receipt_footer || '',
+                cashier_can_access_dashboard: globalSettings.cashier_can_access_dashboard !== undefined ? globalSettings.cashier_can_access_dashboard : '1',
+                cashier_can_access_pos: globalSettings.cashier_can_access_pos !== undefined ? globalSettings.cashier_can_access_pos : '1',
+                cashier_can_access_products: globalSettings.cashier_can_access_products !== undefined ? globalSettings.cashier_can_access_products : '1',
+                cashier_can_access_customers: globalSettings.cashier_can_access_customers !== undefined ? globalSettings.cashier_can_access_customers : '1',
+                cashier_can_access_invoices: globalSettings.cashier_can_access_invoices !== undefined ? globalSettings.cashier_can_access_invoices : '1',
             });
         }
     }, [globalSettings]);
@@ -284,6 +294,33 @@ const Settings = () => {
                                     className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
                                     placeholder="Thank you for shopping!"
                                 />
+                            </div>
+                        </div>
+
+                        {/* Cashier Sidebar Permissions */}
+                        <div className="border-t dark:border-slate-800 pt-4 mt-2">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Cashier Menu Permissions</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border dark:border-slate-850">
+                                {[
+                                    { key: 'cashier_can_access_dashboard', label: 'Dashboard Access' },
+                                    { key: 'cashier_can_access_pos', label: 'POS Screen Access' },
+                                    { key: 'cashier_can_access_products', label: 'Products Catalog Access' },
+                                    { key: 'cashier_can_access_customers', label: 'Customers List Access' },
+                                    { key: 'cashier_can_access_invoices', label: 'Invoices History Access' },
+                                ].map((perm) => (
+                                    <label key={perm.key} className="flex items-center gap-3 cursor-pointer select-none py-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={shopForm[perm.key] === '1'}
+                                            onChange={(e) => setShopForm({
+                                                ...shopForm,
+                                                [perm.key]: e.target.checked ? '1' : '0'
+                                            })}
+                                            className="w-4 h-4 rounded text-indigo-650 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-350">{perm.label}</span>
+                                    </label>
+                                ))}
                             </div>
                         </div>
 

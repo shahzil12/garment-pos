@@ -38,20 +38,26 @@ const Layout = ({ children }) => {
     };
 
     const navigationItems = [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['admin', 'cashier'] },
-        { name: 'POS Screen', path: '/pos', icon: ShoppingCart, roles: ['admin', 'cashier'] },
-        { name: 'Products Catalog', path: '/products', icon: Shirt, roles: ['admin', 'cashier'] },
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['admin', 'cashier'], key: 'cashier_can_access_dashboard' },
+        { name: 'POS Screen', path: '/pos', icon: ShoppingCart, roles: ['admin', 'cashier'], key: 'cashier_can_access_pos' },
+        { name: 'Products Catalog', path: '/products', icon: Shirt, roles: ['admin', 'cashier'], key: 'cashier_can_access_products' },
         { name: 'Inventory Logs', path: '/inventory', icon: Package, roles: ['admin'] },
         { name: 'Vendors & POs', path: '/vendors', icon: Truck, roles: ['admin'] },
-        { name: 'Customers', path: '/customers', icon: Users, roles: ['admin', 'cashier'] },
-        { name: 'Invoices History', path: '/invoices', icon: FileText, roles: ['admin', 'cashier'] },
+        { name: 'Customers', path: '/customers', icon: Users, roles: ['admin', 'cashier'], key: 'cashier_can_access_customers' },
+        { name: 'Invoices History', path: '/invoices', icon: FileText, roles: ['admin', 'cashier'], key: 'cashier_can_access_invoices' },
         { name: 'Expenses', path: '/expenses', icon: DollarSign, roles: ['admin'] },
         { name: 'Analytics & Reports', path: '/reports', icon: BarChart3, roles: ['admin'] },
         { name: 'Manage Cashiers', path: '/employees', icon: UserCheck, roles: ['admin'] },
         { name: 'System Settings', path: '/settings', icon: SettingsIcon, roles: ['admin'] },
     ];
 
-    const filteredNavItems = navigationItems.filter(item => item.roles.includes(role));
+    const filteredNavItems = navigationItems.filter(item => {
+        if (!item.roles.includes(role)) return false;
+        if (role === 'cashier' && item.key && settings[item.key] === '0') {
+            return false;
+        }
+        return true;
+    });
 
     return (
         <div className="flex h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans transition-colors duration-200">
