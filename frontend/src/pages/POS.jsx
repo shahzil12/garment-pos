@@ -24,6 +24,23 @@ import {
 } from 'lucide-react';
 import canvasConfetti from 'canvas-confetti';
 
+const playBeep = () => {
+    try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const oscillator = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(1000, audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+        oscillator.start();
+        oscillator.stop(audioCtx.currentTime + 0.08);
+    } catch (err) {
+        console.error('Failed to play scan beep:', err);
+    }
+};
+
 const POS = () => {
     const { formatCurrency, settings } = useSettings();
     const { user } = useAuth();
@@ -115,6 +132,35 @@ const POS = () => {
         return () => clearTimeout(timer);
     }, [searchQuery, selectedCategory]);
 
+    const handleSearchKeyDown = async (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const query = searchQuery.trim();
+            if (!query) return;
+
+            try {
+                setLoadingProducts(true);
+                const response = await axios.get(`/pos/search?q=${query}`);
+                const results = response.data.data;
+                const exactMatch = results.find(
+                    (p) => p.barcode === query || p.sku === query
+                );
+
+                if (exactMatch) {
+                    addToCart(exactMatch);
+                    setSearchQuery('');
+                } else if (results.length === 1) {
+                    addToCart(results[0]);
+                    setSearchQuery('');
+                }
+            } catch (err) {
+                console.error('Failed to auto-pick product:', err);
+            } finally {
+                setLoadingProducts(false);
+            }
+        }
+    };
+
     // Cart Operations
     const addToCart = (product) => {
         if (product.quantity <= 0) {
@@ -139,6 +185,7 @@ const POS = () => {
             const updated = [...cart];
             updated[existingIdx].quantity += 1;
             setCart(updated);
+            playBeep();
         } else {
             setCart([
                 ...cart,
@@ -159,6 +206,7 @@ const POS = () => {
                     colors: product.colors || []
                 }
             ]);
+            playBeep();
         }
     };
 
@@ -324,6 +372,7 @@ const POS = () => {
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
+                            onKeyDown={handleSearchKeyDown}
                             placeholder="Search by name, SKU or scan Barcode..."
                             className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-550"
                         />
