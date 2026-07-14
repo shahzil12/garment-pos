@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
 import Modal from '../components/Modal';
@@ -377,7 +377,7 @@ const POS = () => {
             // Convert canvas to blob
             canvas.toBlob(async (blob) => {
                 if (!blob) {
-                    alert('Failed to generate invoice image.');
+                    alert('Failed to generate invoice image (empty canvas blob).');
                     setSharingWhatsApp(false);
                     return;
                 }
@@ -415,7 +415,7 @@ const POS = () => {
             }, 'image/png');
         } catch (err) {
             console.error('Failed to capture invoice:', err);
-            alert('Failed to generate invoice image.');
+            alert(`Failed to generate invoice image: ${err.message || err}`);
             setSharingWhatsApp(false);
         }
     };
