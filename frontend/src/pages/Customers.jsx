@@ -129,7 +129,7 @@ const Customers = () => {
                         <>
                             <button
                                 onClick={() => startEdit(row)}
-                                className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-550 hover:text-indigo-650"
+                                className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-550 hover:text-indigo-600"
                             >
                                 <Edit className="w-4 h-4" />
                             </button>
@@ -228,7 +228,7 @@ const Customers = () => {
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition"
                     >
                         Save Profile
                     </button>
@@ -294,7 +294,7 @@ const Customers = () => {
                                                 <tr key={sale.id} className="hover:bg-slate-50/20 dark:hover:bg-slate-800/10">
                                                     <td className="p-3 font-semibold text-slate-700 dark:text-slate-350">{sale.invoice_number}</td>
                                                     <td className="p-3 text-slate-500">{new Date(sale.sale_date).toLocaleDateString()}</td>
-                                                    <td className="p-3 text-slate-650 capitalize">{sale.payment_method?.replace('_', ' ')}</td>
+                                                    <td className="p-3 text-slate-600 capitalize">{sale.payment_method?.replace('_', ' ')}</td>
                                                     <td className="p-3 text-right font-bold text-slate-800 dark:text-white">{formatCurrency(sale.payable_amount)}</td>
                                                     <td className="p-3">
                                                         <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${

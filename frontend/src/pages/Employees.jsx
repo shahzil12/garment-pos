@@ -10,7 +10,7 @@ const Employees = () => {
     const [modalOpen, setModalOpen] = useState(false);
     const [editingEmployee, setEditingEmployee] = useState(null);
 
-    const [form, setForm] = useState({ name: '', email: '', password: '' });
+    const [form, setForm] = useState({ name: '', email: '', password: '', role: 'cashier' });
 
     const fetchEmployees = async () => {
         setLoading(true);
@@ -43,7 +43,7 @@ const Employees = () => {
                 fetchEmployees();
                 setModalOpen(false);
                 setEditingEmployee(null);
-                setForm({ name: '', email: '', password: '' });
+                setForm({ name: '', email: '', password: '', role: 'cashier' });
             }
         } catch (err) {
             alert('Failed to save account. Check email is unique.');
@@ -63,13 +63,13 @@ const Employees = () => {
 
     const startEdit = (emp) => {
         setEditingEmployee(emp);
-        setForm({ name: emp.name, email: emp.email, password: '' }); // keep pass blank
+        setForm({ name: emp.name, email: emp.email, password: '', role: emp.role || 'cashier' }); // keep pass blank
         setModalOpen(true);
     };
 
     const columns = [
         {
-            header: 'Cashier Name',
+            header: 'Name',
             accessor: 'name',
             render: (val, row) => (
                 <div className="flex items-center gap-3">
@@ -109,7 +109,7 @@ const Employees = () => {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => startEdit(row)}
-                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-550 hover:text-indigo-650"
+                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-550 hover:text-indigo-600"
                     >
                         <Edit className="w-4 h-4" />
                     </button>
@@ -134,17 +134,17 @@ const Employees = () => {
             {/* Page Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Cashier Management</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Staff Management</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Create cashier credentials, activate or suspend staff access, and audit log histories.
+                        Create staff credentials, activate or suspend staff access, and audit log histories.
                     </p>
                 </div>
                 <button
-                    onClick={() => { setEditingEmployee(null); setModalOpen(true); }}
+                    onClick={() => { setEditingEmployee(null); setForm({ name: '', email: '', password: '', role: 'cashier' }); setModalOpen(true); }}
                     className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow-md transition"
                 >
                     <Plus className="w-4.5 h-4.5" />
-                    <span>Create Cashier</span>
+                    <span>Create Staff Member</span>
                 </button>
             </div>
 
@@ -159,7 +159,7 @@ const Employees = () => {
             <Modal
                 isOpen={modalOpen}
                 onClose={() => setModalOpen(false)}
-                title={editingEmployee ? 'Edit Cashier Account' : 'Register New Cashier'}
+                title={editingEmployee ? 'Edit Staff Account' : 'Register New Staff Member'}
             >
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
@@ -170,7 +170,7 @@ const Employees = () => {
                             value={form.name}
                             onChange={(e) => setForm({ ...form, name: e.target.value })}
                             className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm focus:outline-none"
-                            placeholder="Jane Cashier"
+                            placeholder="Jane Doe"
                         />
                     </div>
                     <div>
@@ -183,6 +183,17 @@ const Employees = () => {
                             className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm focus:outline-none"
                             placeholder="jane@shop.com"
                         />
+                    </div>
+                    <div>
+                        <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Role *</label>
+                        <select
+                            value={form.role}
+                            onChange={(e) => setForm({ ...form, role: e.target.value })}
+                            className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm focus:outline-none"
+                        >
+                            <option value="cashier">Cashier</option>
+                            <option value="manager">Manager</option>
+                        </select>
                     </div>
                     <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
@@ -199,9 +210,9 @@ const Employees = () => {
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition"
                     >
-                        Save Cashier Account
+                        Save Account
                     </button>
                 </form>
             </Modal>

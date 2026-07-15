@@ -217,7 +217,7 @@ const Vendors = () => {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => startVendorEdit(row)}
-                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-550 hover:text-indigo-650"
+                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-550 hover:text-indigo-600"
                     >
                         <Edit className="w-4 h-4" />
                     </button>
@@ -436,7 +436,7 @@ const Vendors = () => {
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white rounded-xl text-sm font-semibold"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition"
                     >
                         Save Vendor
                     </button>
@@ -632,7 +632,7 @@ const Vendors = () => {
                                 required
                                 value={payForm.amount}
                                 onChange={(e) => setPayForm({ ...payForm, amount: e.target.value })}
-                                className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm focus:outline-none text-right font-bold text-indigo-650"
+                                className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm focus:outline-none text-right font-bold text-indigo-600"
                             />
                         </div>
                         <div>

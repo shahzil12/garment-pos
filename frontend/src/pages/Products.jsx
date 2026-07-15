@@ -286,7 +286,7 @@ const Products = () => {
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-slate-100 dark:bg-slate-800 border dark:border-slate-800 overflow-hidden flex items-center justify-center text-slate-400">
                         {row.image_path ? (
-                            <img src={`http://127.0.0.1:8000${row.image_path}`} alt={val} className="w-full h-full object-cover" />
+                            <img src={row.image_path.startsWith('http') ? row.image_path : `${(axios.defaults.baseURL || 'http://127.0.0.1:8000/api').replace(/\/api$/, '')}${row.image_path}`} alt={val} className="w-full h-full object-cover" />
                         ) : (
                             <Shirt className="w-5 h-5" />
                         )}
@@ -324,7 +324,7 @@ const Products = () => {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => startProductEdit(row)}
-                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-500 hover:text-indigo-650 transition"
+                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-550 hover:text-indigo-600 transition"
                     >
                         <Edit className="w-4 h-4" />
                     </button>
@@ -751,7 +751,7 @@ const Products = () => {
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white rounded-xl text-sm font-semibold"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition"
                     >
                         Save Category
                     </button>
@@ -788,7 +788,7 @@ const Products = () => {
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white rounded-xl text-sm font-semibold"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition"
                     >
                         Save Brand
                     </button>

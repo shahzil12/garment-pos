@@ -11,8 +11,8 @@ class EmployeeController extends Controller
 {
     public function index(Request $request)
     {
-        // Allow listing cashiers (and admins if logged in user is admin, but for this cashier management module, we focus on cashier)
-        $employees = User::where('role', 'cashier')->orderBy('name', 'asc')->get();
+        // Allow listing cashiers and managers
+        $employees = User::whereIn('role', ['cashier', 'manager'])->orderBy('name', 'asc')->get();
         return response()->json(['status' => 'success', 'data' => $employees]);
     }
 
@@ -22,26 +22,27 @@ class EmployeeController extends Controller
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
             'password' => 'required|string|min:6',
+            'role' => 'nullable|string|in:cashier,manager',
         ]);
 
         $employee = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => 'cashier',
+            'role' => $request->role ?? 'cashier',
             'is_active' => true,
         ]);
 
         // Audit Trail
         AuditLog::create([
             'user_id' => $request->user()->id,
-            'action' => 'Cashier Created',
-            'description' => "Created cashier account for {$employee->name} ({$employee->email})",
+            'action' => 'Staff Account Created',
+            'description' => "Created " . ucfirst($employee->role) . " account for {$employee->name} ({$employee->email})",
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
-        return response()->json(['status' => 'success', 'message' => 'Cashier account created successfully', 'data' => $employee], 201);
+        return response()->json(['status' => 'success', 'message' => 'Staff account created successfully', 'data' => $employee], 201);
     }
 
     public function update(Request $request, $id)
@@ -52,10 +53,14 @@ class EmployeeController extends Controller
             'name' => 'required|string|max:255',
             'email' => "required|email|unique:users,email,{$id}",
             'password' => 'nullable|string|min:6',
+            'role' => 'nullable|string|in:cashier,manager',
         ]);
 
         $employee->name = $request->name;
         $employee->email = $request->email;
+        if ($request->filled('role')) {
+            $employee->role = $request->role;
+        }
 
         if ($request->filled('password')) {
             $employee->password = Hash::make($request->password);
@@ -66,13 +71,13 @@ class EmployeeController extends Controller
         // Audit Trail
         AuditLog::create([
             'user_id' => $request->user()->id,
-            'action' => 'Cashier Updated',
-            'description' => "Updated cashier account ID {$id} ({$employee->name})",
+            'action' => 'Staff Account Updated',
+            'description' => "Updated " . ucfirst($employee->role) . " account ID {$id} ({$employee->name})",
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
-        return response()->json(['status' => 'success', 'message' => 'Cashier account updated successfully', 'data' => $employee]);
+        return response()->json(['status' => 'success', 'message' => 'Staff account updated successfully', 'data' => $employee]);
     }
 
     public function toggleStatus(Request $request, $id)
@@ -86,12 +91,12 @@ class EmployeeController extends Controller
         // Audit Trail
         AuditLog::create([
             'user_id' => $request->user()->id,
-            'action' => "Cashier Status Toggled",
-            'description' => "{$status} cashier account ID {$id} ({$employee->name})",
+            'action' => "Staff Status Toggled",
+            'description' => "{$status} " . ucfirst($employee->role) . " account ID {$id} ({$employee->name})",
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
 
-        return response()->json(['status' => 'success', 'message' => "Cashier account {$status} successfully", 'data' => $employee]);
+        return response()->json(['status' => 'success', 'message' => "Staff account {$status} successfully", 'data' => $employee]);
     }
 }

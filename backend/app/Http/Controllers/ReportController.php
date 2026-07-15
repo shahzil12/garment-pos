@@ -188,7 +188,7 @@ class ReportController extends Controller
         $from = Carbon::parse($request->date_from)->startOfDay();
         $to = Carbon::parse($request->date_to)->endOfDay();
 
-        $cashiers = User::where('role', 'cashier')->get();
+        $cashiers = User::whereIn('role', ['cashier', 'manager'])->get();
         $report = [];
 
         foreach ($cashiers as $c) {

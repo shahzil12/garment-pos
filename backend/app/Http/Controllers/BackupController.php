@@ -34,24 +34,39 @@ class BackupController extends Controller
     public function createBackup(Request $request)
     {
         try {
-            // Get all table names
-            $tables = DB::connection()->getDoctrineSchemaManager()->listTableNames();
+            // Get database driver name
+            $driver = DB::connection()->getDriverName();
+
+            // Get all table names using native Schema method
+            $rawTables = Schema::getTables();
+            $tables = array_map(fn($t) => $t['name'], $rawTables);
+
             $sqlDump = "-- Garment POS Database Backup\n";
             $sqlDump .= "-- Created at: " . date('Y-m-d H:i:s') . "\n\n";
-            $sqlDump .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+
+            if ($driver === 'sqlite') {
+                $sqlDump .= "PRAGMA foreign_keys = OFF;\n\n";
+            } else {
+                $sqlDump .= "SET FOREIGN_KEY_CHECKS=0;\n\n";
+            }
 
             foreach ($tables as $table) {
-                // Ignore migrations and personal_access_tokens (optional, let's keep it simple)
-                if (in_array($table, ['migrations'])) {
+                // Ignore migrations and system tables starting with sqlite_
+                if (in_array($table, ['migrations']) || str_starts_with($table, 'sqlite_')) {
                     continue;
                 }
 
                 // Generate DROP TABLE statement
                 $sqlDump .= "DROP TABLE IF EXISTS `$table`;\n";
 
-                // Generate CREATE TABLE statement
-                $createTableQuery = DB::select("SHOW CREATE TABLE `$table`")[0];
-                $createTableSql = reset($createTableQuery); // Get value
+                // Generate CREATE TABLE statement depending on driver
+                if ($driver === 'sqlite') {
+                    $createTableQuery = DB::select("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", [$table])[0];
+                    $createTableSql = $createTableQuery->sql;
+                } else {
+                    $createTableQuery = DB::select("SHOW CREATE TABLE `$table`")[0];
+                    $createTableSql = reset($createTableQuery); // Get value
+                }
                 $sqlDump .= $createTableSql . ";\n\n";
 
                 // Fetch all data
@@ -75,7 +90,11 @@ class BackupController extends Controller
                 }
             }
 
-            $sqlDump .= "SET FOREIGN_KEY_CHECKS=1;\n";
+            if ($driver === 'sqlite') {
+                $sqlDump .= "PRAGMA foreign_keys = ON;\n";
+            } else {
+                $sqlDump .= "SET FOREIGN_KEY_CHECKS=1;\n";
+            }
 
             // Save to local backups storage folder
             $filename = 'backup_' . date('Ymd_His') . '.sql';
@@ -83,7 +102,7 @@ class BackupController extends Controller
 
             // Audit Trail
             AuditLog::create([
-                'user_id' => $request->user()->id,
+                'user_id' => $request->user()?->id,
                 'action' => 'Database Backup Created',
                 'description' => "Created backup archive: {$filename}",
                 'ip_address' => $request->ip(),
@@ -117,7 +136,7 @@ class BackupController extends Controller
 
         // Audit Trail
         AuditLog::create([
-            'user_id' => $request->user()->id,
+            'user_id' => $request->user()?->id,
             'action' => 'Database Backup Deleted',
             'description' => "Deleted backup archive: {$filename}",
             'ip_address' => $request->ip(),
@@ -136,12 +155,14 @@ class BackupController extends Controller
         try {
             $sqlContent = file_get_contents($request->file('backup_file')->getRealPath());
             
-            // Execute restore
-            DB::unprepared($sqlContent);
+            // Execute restore inside transaction to maintain integrity
+            DB::transaction(function () use ($sqlContent) {
+                DB::unprepared($sqlContent);
+            });
 
             // Audit Trail
             AuditLog::create([
-                'user_id' => $request->user()->id,
+                'user_id' => $request->user()?->id,
                 'action' => 'Database Restored',
                 'description' => "Restored database from uploaded backup file",
                 'ip_address' => $request->ip(),

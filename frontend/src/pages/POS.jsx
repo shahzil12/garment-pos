@@ -21,7 +21,9 @@ import {
     X,
     FileCheck,
     Shirt,
-    ShoppingCart
+    ShoppingCart,
+    Pause,
+    History
 } from 'lucide-react';
 import canvasConfetti from 'canvas-confetti';
 
@@ -74,6 +76,114 @@ const POS = () => {
     const [printType, setPrintType] = useState('thermal'); // 'thermal' or 'a4'
 
     const barcodeInputRef = useRef(null);
+
+    // Held Orders State
+    const [heldOrders, setHeldOrders] = useState([]);
+    const [heldOrdersModalOpen, setHeldOrdersModalOpen] = useState(false);
+
+    // Load held orders when user is available
+    useEffect(() => {
+        if (user?.id) {
+            try {
+                const saved = localStorage.getItem(`pos_held_orders_${user.id}`);
+                setHeldOrders(saved ? JSON.parse(saved) : []);
+            } catch (e) {
+                console.error('Failed to load held orders:', e);
+                setHeldOrders([]);
+            }
+        } else {
+            setHeldOrders([]);
+        }
+    }, [user?.id]);
+
+    // Sync held orders to localStorage
+    useEffect(() => {
+        if (user?.id) {
+            try {
+                localStorage.setItem(`pos_held_orders_${user.id}`, JSON.stringify(heldOrders));
+            } catch (e) {
+                console.error('Failed to save held orders:', e);
+            }
+        }
+    }, [heldOrders, user?.id]);
+
+    // Handle putting current order on hold
+    const handleHoldOrder = () => {
+        if (cart.length === 0) {
+            alert('Cannot hold an empty cart!');
+            return;
+        }
+
+        const currentCustomer = customers.find(c => c.id === parseInt(selectedCustomerId));
+        const newHeld = {
+            id: Date.now().toString(),
+            cart: [...cart],
+            selectedCustomerId,
+            customerName: currentCustomer ? currentCustomer.name : 'Walk-In Customer',
+            cartDiscount,
+            paymentMethod,
+            checkoutNotes,
+            heldAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setHeldOrders([newHeld, ...heldOrders]);
+
+        // Reset cart and checkout states
+        setCart([]);
+        setCartDiscount(0);
+        setCheckoutNotes('');
+        setPaymentMethod('cash');
+        
+        // Pre-select Walk-in Customer
+        const walkIn = customers.find(c => c.id === 1 || c.name.toLowerCase().includes('walk-in'));
+        if (walkIn) {
+            setSelectedCustomerId(walkIn.id);
+        } else if (customers.length > 0) {
+            setSelectedCustomerId(customers[0].id);
+        }
+    };
+
+    // Handle resuming a held order
+    const handleResumeOrder = (targetOrder) => {
+        if (cart.length > 0) {
+            const proceed = window.confirm("Your active cart is not empty. Would you like to put the current active cart on hold and load the selected order?");
+            if (!proceed) return;
+
+            // Put current cart on hold
+            const currentCustomer = customers.find(c => c.id === parseInt(selectedCustomerId));
+            const newHeld = {
+                id: Date.now().toString(),
+                cart: [...cart],
+                selectedCustomerId,
+                customerName: currentCustomer ? currentCustomer.name : 'Walk-In Customer',
+                cartDiscount,
+                paymentMethod,
+                checkoutNotes,
+                heldAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            };
+
+            // Swap: add current to held, filter out the resumed one
+            setHeldOrders(prev => [newHeld, ...prev.filter(o => o.id !== targetOrder.id)]);
+        } else {
+            // Just filter out the resumed one
+            setHeldOrders(prev => prev.filter(o => o.id !== targetOrder.id));
+        }
+
+        // Load resumed order states
+        setCart(targetOrder.cart);
+        setSelectedCustomerId(targetOrder.selectedCustomerId);
+        setCartDiscount(targetOrder.cartDiscount);
+        setPaymentMethod(targetOrder.paymentMethod);
+        setCheckoutNotes(targetOrder.checkoutNotes || '');
+        setHeldOrdersModalOpen(false);
+    };
+
+    // Handle deleting a held order
+    const handleDeleteHeldOrder = (orderId) => {
+        if (window.confirm("Are you sure you want to discard this held order?")) {
+            setHeldOrders(prev => prev.filter(o => o.id !== orderId));
+        }
+    };
 
     // Load initial data
     useEffect(() => {
@@ -442,7 +552,7 @@ const POS = () => {
                         {searchQuery && (
                             <button
                                 onClick={() => setSearchQuery('')}
-                                className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-650"
+                                className="absolute right-3.5 top-3 text-slate-400 hover:text-slate-600"
                             >
                                 <X className="w-4 h-4" />
                             </button>
@@ -507,10 +617,10 @@ const POS = () => {
                                                 </span>
                                                 <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
                                                     isOutOfStock
-                                                        ? 'bg-red-50 text-red-650 dark:bg-red-950/20'
+                                                        ? 'bg-red-50 text-red-600 dark:bg-red-950/20'
                                                         : isLowStock
-                                                        ? 'bg-amber-50 text-amber-650 dark:bg-amber-950/20'
-                                                        : 'bg-emerald-50 text-emerald-650 dark:bg-emerald-950/20'
+                                                        ? 'bg-amber-50 text-amber-600 dark:bg-amber-950/20'
+                                                        : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/20'
                                                 }`}>
                                                     {isOutOfStock ? 'Out' : isLowStock ? `${prod.quantity} Left` : 'In Stock'}
                                                 </span>
@@ -552,13 +662,27 @@ const POS = () => {
                             ))}
                         </select>
                     </div>
-                    <button
-                        onClick={() => setAddCustomerOpen(true)}
-                        className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md shadow-indigo-600/10 flex items-center justify-center transition-all duration-150"
-                        title="Add Customer"
-                    >
-                        <UserPlus className="w-4 h-4" />
-                    </button>
+                    <div className="flex gap-2 shrink-0">
+                        <button
+                            onClick={() => setHeldOrdersModalOpen(true)}
+                            className="relative p-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-850 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-center transition-all duration-150"
+                            title="View Held Orders"
+                        >
+                            <History className="w-4 h-4" />
+                            {heldOrders.length > 0 && (
+                                <span className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white text-[9px] font-bold w-4 h-4 rounded-full flex items-center justify-center border border-white dark:border-slate-900 animate-pulse">
+                                    {heldOrders.length}
+                                </span>
+                            )}
+                        </button>
+                        <button
+                            onClick={() => setAddCustomerOpen(true)}
+                            className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md shadow-indigo-600/10 flex items-center justify-center transition-all duration-150"
+                            title="Add Customer"
+                        >
+                            <UserPlus className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Cart Items List */}
@@ -697,15 +821,27 @@ const POS = () => {
                         })}
                     </div>
 
-                    {/* Checkout Button */}
-                    <button
-                        onClick={handleCheckout}
-                        disabled={cart.length === 0 || submittingCheckout}
-                        className="w-full py-3 bg-gradient-to-r from-violet-600 to-indigo-600 disabled:from-slate-350 disabled:to-slate-400 dark:disabled:from-slate-800 text-white rounded-2xl text-sm font-semibold hover:shadow-lg hover:shadow-indigo-550/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                    >
-                        <span>{submittingCheckout ? 'Processing...' : 'Complete Checkout'}</span>
-                        <FileCheck className="w-4 h-4" />
-                    </button>
+                    {/* Action Buttons: Hold & Checkout */}
+                    <div className="flex gap-3">
+                        <button
+                            type="button"
+                            onClick={handleHoldOrder}
+                            disabled={cart.length === 0}
+                            className="px-4 py-3 bg-amber-500 hover:bg-amber-600 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 dark:disabled:text-slate-600 text-white rounded-2xl text-xs font-bold active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
+                            title="Hold Order"
+                        >
+                            <Pause className="w-4 h-4" />
+                            <span>Hold</span>
+                        </button>
+                        <button
+                            onClick={handleCheckout}
+                            disabled={cart.length === 0 || submittingCheckout}
+                            className="flex-1 py-3 bg-gradient-to-r from-violet-600 to-indigo-600 disabled:from-slate-350 disabled:to-slate-400 dark:disabled:from-slate-800 text-white rounded-2xl text-sm font-semibold hover:shadow-lg hover:shadow-indigo-550/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        >
+                            <span>{submittingCheckout ? 'Processing...' : 'Complete Checkout'}</span>
+                            <FileCheck className="w-4 h-4" />
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -762,6 +898,73 @@ const POS = () => {
                         Save Customer
                     </button>
                 </form>
+            </Modal>
+            {/* Modal: Held/Paused Orders */}
+            <Modal
+                isOpen={heldOrdersModalOpen}
+                onClose={() => setHeldOrdersModalOpen(false)}
+                title="Paused / Held Orders"
+                size="md"
+            >
+                {heldOrders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-12 text-slate-400 text-sm">
+                        <History className="w-12 h-12 mb-3 text-slate-300 dark:text-slate-700" />
+                        <span>No paused orders found.</span>
+                    </div>
+                ) : (
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
+                        {heldOrders.map((order) => {
+                            const subtotal = order.cart.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
+                            const disc = parseFloat(order.cartDiscount) || 0;
+                            const taxRate = parseFloat(settings.tax_rate) || 0;
+                            const taxable = Math.max(0, subtotal - disc);
+                            const tax = taxable * (taxRate / 100);
+                            const totalVal = Math.max(0, subtotal - disc + tax);
+                            const itemCount = order.cart.reduce((total, item) => total + item.quantity, 0);
+
+                            return (
+                                <div
+                                    key={order.id}
+                                    className="p-4 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:border-slate-300 dark:hover:border-slate-750 transition-all animate-fade-in"
+                                >
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                                                {order.customerName}
+                                            </span>
+                                            <span className="text-[10px] bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-full font-semibold">
+                                                {order.heldAt}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                                            {itemCount} item{itemCount !== 1 ? 's' : ''} • Total: <span className="font-semibold">{formatCurrency(totalVal)}</span>
+                                        </p>
+                                        <p className="text-[10px] text-slate-400 max-w-[250px] truncate">
+                                            {order.cart.map(it => `${it.name} (${it.quantity})`).join(', ')}
+                                        </p>
+                                    </div>
+                                    <div className="flex gap-2 shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => handleResumeOrder(order)}
+                                            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl active:scale-[0.98] transition-all flex items-center gap-1 cursor-pointer"
+                                        >
+                                            Resume
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleDeleteHeldOrder(order.id)}
+                                            className="p-2 bg-slate-100 hover:bg-red-50 hover:text-red-600 dark:bg-slate-900 dark:hover:bg-red-950/20 dark:hover:text-red-400 text-slate-400 border border-slate-200 dark:border-slate-800 hover:border-red-200 dark:hover:border-red-900/50 rounded-xl transition-all cursor-pointer"
+                                            title="Discard order"
+                                        >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
             </Modal>
 
             {/* Modal: Checkout Success Invoice/Receipt */}
@@ -831,8 +1034,8 @@ const POS = () => {
                                                 <tr key={item.id}>
                                                     <td className="py-1">
                                                         {item.product?.name}
-                                                        <span className="block text-[8px] text-slate-500">
-                                                            {item.size || '-'}/{item.color || '-'}
+                                                        <span className="block text-[8px] text-slate-550">
+                                                            {item.size || '-'}/{item.color || '-'} • @ {formatCurrency(item.unit_price)}
                                                         </span>
                                                     </td>
                                                     <td className="py-1 text-center">{item.quantity}</td>
@@ -953,7 +1156,7 @@ const POS = () => {
                         </button>
                         <button
                             onClick={triggerBrowserPrint}
-                            className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/10 flex items-center gap-2 transition-all"
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-md shadow-indigo-600/10 flex items-center gap-2 transition-all"
                         >
                             <Printer className="w-4 h-4" />
                             <span>Print Invoice</span>

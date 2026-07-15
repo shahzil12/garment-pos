@@ -27,16 +27,6 @@ const Login = () => {
         }
     };
 
-    const handleQuickLogin = (role) => {
-        if (role === 'admin') {
-            setEmail('admin@pos.com');
-            setPassword('password');
-        } else {
-            setEmail('cashier@pos.com');
-            setPassword('password');
-        }
-    };
-
     return (
         <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 transition-colors duration-200">
             <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 shadow-2xl rounded-3xl overflow-hidden p-8 space-y-6">
@@ -112,29 +102,6 @@ const Login = () => {
                         {loading ? 'Signing in...' : 'Sign In'}
                     </button>
                 </form>
-
-                {/* Quick login helpers */}
-                <div className="pt-4 border-t border-slate-100 dark:border-slate-800/80">
-                    <p className="text-center text-xs text-slate-500 dark:text-slate-400 mb-3">
-                        Quick Demo Logins
-                    </p>
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            type="button"
-                            onClick={() => handleQuickLogin('admin')}
-                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-all"
-                        >
-                            Login as Admin
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => handleQuickLogin('cashier')}
-                            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-all"
-                        >
-                            Login as Cashier
-                        </button>
-                    </div>
-                </div>
 
             </div>
         </div>

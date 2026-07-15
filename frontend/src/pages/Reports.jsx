@@ -220,11 +220,11 @@ const Reports = () => {
                             </div>
                             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Overhead Expenses</p>
-                                <h3 className="text-lg font-extrabold mt-1 text-rose-650">{formatCurrency(pnlData.expenses)}</h3>
+                                <h3 className="text-lg font-extrabold mt-1 text-rose-600">{formatCurrency(pnlData.expenses)}</h3>
                             </div>
                             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Net Profit</p>
-                                <h3 className={`text-lg font-extrabold mt-1 ${pnlData.net_profit >= 0 ? 'text-emerald-650' : 'text-rose-650'}`}>
+                                <h3 className={`text-lg font-extrabold mt-1 ${pnlData.net_profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                     {formatCurrency(pnlData.net_profit)}
                                 </h3>
                             </div>
@@ -265,11 +265,11 @@ const Reports = () => {
                             </div>
                             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Retail Value (Potential Revenue)</p>
-                                <h3 className="text-lg font-extrabold mt-1 text-indigo-650">{formatCurrency(inventoryReport.summary.total_retail_value)}</h3>
+                                <h3 className="text-lg font-extrabold mt-1 text-indigo-600">{formatCurrency(inventoryReport.summary.total_retail_value)}</h3>
                             </div>
                             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
                                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Potential Profits</p>
-                                <h3 className="text-lg font-extrabold mt-1 text-emerald-650">{formatCurrency(inventoryReport.summary.potential_profit)}</h3>
+                                <h3 className="text-lg font-extrabold mt-1 text-emerald-600">{formatCurrency(inventoryReport.summary.potential_profit)}</h3>
                             </div>
                         </div>
                     )}

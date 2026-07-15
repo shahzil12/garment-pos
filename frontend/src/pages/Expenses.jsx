@@ -164,7 +164,7 @@ const Expenses = () => {
                 <div className="flex items-center gap-2">
                     <button
                         onClick={() => startExpenseEdit(row)}
-                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-550 hover:text-indigo-650"
+                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-550 hover:text-indigo-600"
                     >
                         <Edit className="w-4 h-4" />
                     </button>
@@ -353,7 +353,7 @@ const Expenses = () => {
                             required
                             value={expenseForm.amount}
                             onChange={(e) => setExpenseForm({ ...expenseForm, amount: e.target.value })}
-                            className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none text-right font-bold text-rose-650"
+                            className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none text-right font-bold text-rose-600"
                             placeholder="0.00"
                         />
                     </div>
@@ -371,7 +371,7 @@ const Expenses = () => {
 
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold hover:shadow-lg transition-all"
                     >
                         Save Record
                     </button>
@@ -398,7 +398,7 @@ const Expenses = () => {
                     </div>
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white rounded-xl text-sm font-semibold"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition"
                     >
                         Save Category
                     </button>

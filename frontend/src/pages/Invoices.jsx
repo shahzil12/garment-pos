@@ -167,7 +167,7 @@ const Invoices = () => {
                     {row.status === 'completed' && (
                         <button
                             onClick={() => handleRefund(val)}
-                            className="p-1.5 border border-slate-200 dark:border-slate-850 hover:bg-red-50 hover:border-red-200 dark:hover:bg-red-950/20 rounded-lg text-slate-500 hover:text-red-650 transition"
+                            className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-red-50 hover:border-red-200 dark:hover:bg-red-950/20 rounded-lg text-slate-500 hover:text-red-600 transition"
                             title="Refund & Restock"
                         >
                             <RotateCcw className="w-3.5 h-3.5" />
@@ -294,8 +294,8 @@ const Invoices = () => {
                                                 <tr key={item.id}>
                                                     <td className="py-1">
                                                         {item.product?.name}
-                                                        <span className="block text-[8px] text-slate-550">
-                                                            {item.size || '-'}/{item.color || '-'}
+                                                        <span className="block text-[8px] text-slate-555">
+                                                            {item.size || '-'}/{item.color || '-'} • @ {formatCurrency(item.unit_price)}
                                                         </span>
                                                     </td>
                                                     <td className="py-1 text-center">{item.quantity}</td>
@@ -424,7 +424,7 @@ const Invoices = () => {
                             </button>
                             <button
                                 onClick={triggerPrint}
-                                className="px-5 py-2.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-md flex items-center gap-2 transition"
+                                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-md flex items-center gap-2 transition"
                             >
                                 <Printer className="w-4 h-4" />
                                 <span>Print Receipt</span>

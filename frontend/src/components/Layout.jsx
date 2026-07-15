@@ -38,22 +38,25 @@ const Layout = ({ children }) => {
     };
 
     const navigationItems = [
-        { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['admin', 'cashier'], key: 'cashier_can_access_dashboard' },
-        { name: 'POS Screen', path: '/pos', icon: ShoppingCart, roles: ['admin', 'cashier'], key: 'cashier_can_access_pos' },
-        { name: 'Products Catalog', path: '/products', icon: Shirt, roles: ['admin', 'cashier'], key: 'cashier_can_access_products' },
-        { name: 'Inventory Logs', path: '/inventory', icon: Package, roles: ['admin'] },
-        { name: 'Vendors & POs', path: '/vendors', icon: Truck, roles: ['admin'] },
-        { name: 'Customers', path: '/customers', icon: Users, roles: ['admin', 'cashier'], key: 'cashier_can_access_customers' },
-        { name: 'Invoices History', path: '/invoices', icon: FileText, roles: ['admin', 'cashier'], key: 'cashier_can_access_invoices' },
-        { name: 'Expenses', path: '/expenses', icon: DollarSign, roles: ['admin'] },
-        { name: 'Analytics & Reports', path: '/reports', icon: BarChart3, roles: ['admin'] },
-        { name: 'Manage Cashiers', path: '/employees', icon: UserCheck, roles: ['admin'] },
-        { name: 'System Settings', path: '/settings', icon: SettingsIcon, roles: ['admin'] },
+        { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['admin', 'manager', 'cashier'], key: 'cashier_can_access_dashboard', managerKey: 'manager_can_access_dashboard' },
+        { name: 'POS Screen', path: '/pos', icon: ShoppingCart, roles: ['admin', 'manager', 'cashier'], key: 'cashier_can_access_pos', managerKey: 'manager_can_access_pos' },
+        { name: 'Products Catalog', path: '/products', icon: Shirt, roles: ['admin', 'manager', 'cashier'], key: 'cashier_can_access_products', managerKey: 'manager_can_access_products' },
+        { name: 'Inventory Logs', path: '/inventory', icon: Package, roles: ['admin', 'manager'] },
+        { name: 'Vendors & POs', path: '/vendors', icon: Truck, roles: ['admin', 'manager'] },
+        { name: 'Customers', path: '/customers', icon: Users, roles: ['admin', 'manager', 'cashier'], key: 'cashier_can_access_customers', managerKey: 'manager_can_access_customers' },
+        { name: 'Invoices History', path: '/invoices', icon: FileText, roles: ['admin', 'manager', 'cashier'], key: 'cashier_can_access_invoices', managerKey: 'manager_can_access_invoices' },
+        { name: 'Expenses', path: '/expenses', icon: DollarSign, roles: ['admin', 'manager'] },
+        { name: 'Analytics & Reports', path: '/reports', icon: BarChart3, roles: ['admin', 'manager'] },
+        { name: 'Staff Management', path: '/employees', icon: UserCheck, roles: ['admin', 'manager'] },
+        { name: 'System Settings', path: '/settings', icon: SettingsIcon, roles: ['admin', 'manager'] },
     ];
 
     const filteredNavItems = navigationItems.filter(item => {
         if (!item.roles.includes(role)) return false;
         if (role === 'cashier' && item.key && settings[item.key] === '0') {
+            return false;
+        }
+        if (role === 'manager' && item.managerKey && settings[item.managerKey] === '0') {
             return false;
         }
         return true;

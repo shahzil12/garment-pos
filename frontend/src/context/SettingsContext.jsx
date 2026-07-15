@@ -21,6 +21,11 @@ export const SettingsProvider = ({ children }) => {
         cashier_can_access_products: '1',
         cashier_can_access_customers: '1',
         cashier_can_access_invoices: '1',
+        manager_can_access_dashboard: '1',
+        manager_can_access_pos: '1',
+        manager_can_access_products: '1',
+        manager_can_access_customers: '1',
+        manager_can_access_invoices: '1',
     });
     const [settingsLoading, setSettingsLoading] = useState(false);
 

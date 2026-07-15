@@ -118,7 +118,7 @@ const Inventory = () => {
             header: 'Quantity',
             accessor: 'quantity',
             render: (val, row) => (
-                <span className={`font-bold ${['in', 'returned'].includes(row.type) ? 'text-emerald-600' : 'text-rose-650'}`}>
+                <span className={`font-bold ${['in', 'returned'].includes(row.type) ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {['in', 'returned'].includes(row.type) ? '+' : '-'}{val} Units
                 </span>
             )
@@ -262,7 +262,7 @@ const Inventory = () => {
 
                     <button
                         type="submit"
-                        className="w-full py-2.5 bg-indigo-650 text-white font-semibold rounded-xl hover:shadow-lg transition-all mt-2"
+                        className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-xl hover:shadow-lg transition-all mt-2"
                     >
                         Apply Stock Adjustment
                     </button>

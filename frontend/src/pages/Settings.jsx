@@ -22,6 +22,11 @@ const Settings = () => {
         cashier_can_access_products: '1',
         cashier_can_access_customers: '1',
         cashier_can_access_invoices: '1',
+        manager_can_access_dashboard: '1',
+        manager_can_access_pos: '1',
+        manager_can_access_products: '1',
+        manager_can_access_customers: '1',
+        manager_can_access_invoices: '1',
     });
 
     const [backups, setBackups] = useState([]);
@@ -47,6 +52,11 @@ const Settings = () => {
                 cashier_can_access_products: globalSettings.cashier_can_access_products !== undefined ? globalSettings.cashier_can_access_products : '1',
                 cashier_can_access_customers: globalSettings.cashier_can_access_customers !== undefined ? globalSettings.cashier_can_access_customers : '1',
                 cashier_can_access_invoices: globalSettings.cashier_can_access_invoices !== undefined ? globalSettings.cashier_can_access_invoices : '1',
+                manager_can_access_dashboard: globalSettings.manager_can_access_dashboard !== undefined ? globalSettings.manager_can_access_dashboard : '1',
+                manager_can_access_pos: globalSettings.manager_can_access_pos !== undefined ? globalSettings.manager_can_access_pos : '1',
+                manager_can_access_products: globalSettings.manager_can_access_products !== undefined ? globalSettings.manager_can_access_products : '1',
+                manager_can_access_customers: globalSettings.manager_can_access_customers !== undefined ? globalSettings.manager_can_access_customers : '1',
+                manager_can_access_invoices: globalSettings.manager_can_access_invoices !== undefined ? globalSettings.manager_can_access_invoices : '1',
             });
         }
     }, [globalSettings]);
@@ -167,7 +177,7 @@ const Settings = () => {
                 <div className="flex items-center gap-1.5">
                     <button
                         onClick={() => downloadBackupFile(val)}
-                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-indigo-650"
+                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-slate-500 hover:text-indigo-600"
                         title="Download SQL"
                     >
                         <Download className="w-4 h-4" />
@@ -300,7 +310,7 @@ const Settings = () => {
                         {/* Cashier Sidebar Permissions */}
                         <div className="border-t dark:border-slate-800 pt-4 mt-2">
                             <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Cashier Menu Permissions</h4>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border dark:border-slate-850">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border dark:border-slate-850 mb-4">
                                 {[
                                     { key: 'cashier_can_access_dashboard', label: 'Dashboard Access' },
                                     { key: 'cashier_can_access_pos', label: 'POS Screen Access' },
@@ -316,7 +326,34 @@ const Settings = () => {
                                                 ...shopForm,
                                                 [perm.key]: e.target.checked ? '1' : '0'
                                             })}
-                                            className="w-4 h-4 rounded text-indigo-650 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                            className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
+                                        />
+                                        <span className="text-sm font-medium text-slate-700 dark:text-slate-350">{perm.label}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Manager Sidebar Permissions */}
+                        <div className="border-t dark:border-slate-800 pt-4 mt-2">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-3">Manager Menu Permissions</h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border dark:border-slate-850 mb-6">
+                                {[
+                                    { key: 'manager_can_access_dashboard', label: 'Dashboard Access' },
+                                    { key: 'manager_can_access_pos', label: 'POS Screen Access' },
+                                    { key: 'manager_can_access_products', label: 'Products Catalog Access' },
+                                    { key: 'manager_can_access_customers', label: 'Customers List Access' },
+                                    { key: 'manager_can_access_invoices', label: 'Invoices History Access' },
+                                ].map((perm) => (
+                                    <label key={perm.key} className="flex items-center gap-3 cursor-pointer select-none py-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={shopForm[perm.key] === '1'}
+                                            onChange={(e) => setShopForm({
+                                                ...shopForm,
+                                                [perm.key]: e.target.checked ? '1' : '0'
+                                            })}
+                                            className="w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
                                         />
                                         <span className="text-sm font-medium text-slate-700 dark:text-slate-350">{perm.label}</span>
                                     </label>
@@ -371,7 +408,7 @@ const Settings = () => {
                         <div className="flex items-center gap-3">
                             <label className="flex-1 px-4 py-3 border border-dashed border-slate-350 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-50/50 dark:hover:bg-slate-950/20 text-center flex flex-col items-center justify-center gap-1 transition">
                                 <Upload className="w-6 h-6 text-slate-400" />
-                                <span className="text-xs font-bold text-slate-650 dark:text-slate-350">
+                                <span className="text-xs font-bold text-slate-600 dark:text-slate-350">
                                     {restoring ? 'Restoring configuration...' : 'Upload .sql backup archive'}
                                 </span>
                                 <input

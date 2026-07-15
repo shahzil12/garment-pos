@@ -30,7 +30,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         // Prevent duplicate seeding
-        if (User::where('email', 'admin@pos.com')->exists()) {
+        if (User::exists() || Setting::exists() || Product::exists() || Customer::exists() || Sale::exists()) {
             return;
         }
 
