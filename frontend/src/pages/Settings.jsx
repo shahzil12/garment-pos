@@ -114,14 +114,16 @@ const Settings = () => {
     // Download backup file
     const downloadBackupFile = (filename) => {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
-        window.open(`${apiUrl}/backups/${filename}?token=${localStorage.getItem('token')}`, '_blank');
+        const safeFilename = filename.endsWith('.sql') ? filename.slice(0, -4) : filename;
+        window.open(`${apiUrl}/backups/${safeFilename}?token=${localStorage.getItem('token')}`, '_blank');
     };
 
     // Delete backup
     const deleteBackupFile = async (filename) => {
         if (!confirm(`Are you sure you want to delete backup file: ${filename}?`)) return;
+        const safeFilename = filename.endsWith('.sql') ? filename.slice(0, -4) : filename;
         try {
-            const response = await axios.delete(`/backups/${filename}`);
+            const response = await axios.delete(`/backups/${safeFilename}`);
             if (response.data.status === 'success') {
                 fetchBackups();
             }

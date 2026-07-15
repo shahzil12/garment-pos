@@ -117,17 +117,29 @@ class BackupController extends Controller
 
     public function downloadBackup($filename)
     {
-        $path = 'backups/' . $filename;
+        // Ensure .sql extension is appended if missing in URL
+        $actualFilename = $filename;
+        if (!str_ends_with($actualFilename, '.sql')) {
+            $actualFilename .= '.sql';
+        }
+
+        $path = 'backups/' . $actualFilename;
         if (!Storage::disk('local')->exists($path)) {
             return response()->json(['status' => 'error', 'message' => 'Backup file not found.'], 404);
         }
 
-        return Storage::disk('local')->download($path);
+        return Storage::disk('local')->download($path, $actualFilename);
     }
 
     public function deleteBackup(Request $request, $filename)
     {
-        $path = 'backups/' . $filename;
+        // Ensure .sql extension is appended if missing in URL
+        $actualFilename = $filename;
+        if (!str_ends_with($actualFilename, '.sql')) {
+            $actualFilename .= '.sql';
+        }
+
+        $path = 'backups/' . $actualFilename;
         if (!Storage::disk('local')->exists($path)) {
             return response()->json(['status' => 'error', 'message' => 'Backup file not found.'], 404);
         }
@@ -138,7 +150,7 @@ class BackupController extends Controller
         AuditLog::create([
             'user_id' => $request->user()?->id,
             'action' => 'Database Backup Deleted',
-            'description' => "Deleted backup archive: {$filename}",
+            'description' => "Deleted backup archive: {$actualFilename}",
             'ip_address' => $request->ip(),
             'user_agent' => $request->userAgent(),
         ]);
