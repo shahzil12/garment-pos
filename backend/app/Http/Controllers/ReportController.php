@@ -24,7 +24,7 @@ class ReportController extends Controller
         $from = Carbon::parse($request->date_from)->startOfDay();
         $to = Carbon::parse($request->date_to)->endOfDay();
 
-        $sales = Sale::with(['customer', 'user'])
+        $sales = Sale::with(['customer', 'user', 'items.product'])
             ->where('status', 'completed')
             ->whereBetween('sale_date', [$from, $to])
             ->orderBy('sale_date', 'desc')
@@ -56,10 +56,10 @@ class ReportController extends Controller
         $from = Carbon::parse($request->date_from)->startOfDay();
         $to = Carbon::parse($request->date_to)->endOfDay();
 
-        // 1. Calculate Revenue
+        // 1. Calculate Revenue (excluding tax)
         $revenue = Sale::where('status', 'completed')
             ->whereBetween('sale_date', [$from, $to])
-            ->sum('payable_amount');
+            ->sum(DB::raw('payable_amount - tax_amount'));
 
         // 2. Calculate COGS (Cost of Goods Sold)
         $cogs = DB::table('sale_items')

@@ -44,6 +44,7 @@ class POSController extends Controller
             'items.*.product_id' => 'required|exists:products,id',
             'items.*.quantity' => 'required|integer|min:1',
             'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.original_price' => 'nullable|numeric|min:0',
             'items.*.discount' => 'nullable|numeric|min:0',
             'items.*.tax' => 'nullable|numeric|min:0',
             'items.*.size' => 'nullable|string',
@@ -60,8 +61,15 @@ class POSController extends Controller
             // 1. Check stock for all items
             foreach ($request->items as $item) {
                 $prod = Product::findOrFail($item['product_id']);
-                if ($prod->quantity < $item['quantity']) {
-                    throw new \Exception("Insufficient stock for product '{$prod->name}'. Current stock is {$prod->quantity}.");
+                $size = $item['size'] ?? null;
+                if ($prod->size_stock && $size && isset($prod->size_stock[$size])) {
+                    if ($prod->size_stock[$size] < $item['quantity']) {
+                        throw new \Exception("Insufficient stock for product '{$prod->name}' (Size: {$size}). Current stock is {$prod->size_stock[$size]}.");
+                    }
+                } else {
+                    if ($prod->quantity < $item['quantity']) {
+                        throw new \Exception("Insufficient stock for product '{$prod->name}'. Current stock is {$prod->quantity}.");
+                    }
                 }
             }
 
@@ -95,6 +103,15 @@ class POSController extends Controller
             foreach ($request->items as $item) {
                 $product = Product::findOrFail($item['product_id']);
                 
+                // Deduct stock size-wise if tracked
+                $size = $item['size'] ?? null;
+                if ($product->size_stock && $size && isset($product->size_stock[$size])) {
+                    $sizeStock = $product->size_stock;
+                    $sizeStock[$size] -= $item['quantity'];
+                    $product->size_stock = $sizeStock;
+                    $product->save();
+                }
+                
                 // Deduct stock
                 $product->decrement('quantity', $item['quantity']);
 
@@ -113,6 +130,7 @@ class POSController extends Controller
                     'subtotal' => $subtotal,
                     'size' => $item['size'] ?? null,
                     'color' => $item['color'] ?? null,
+                    'original_price' => $item['original_price'] ?? null,
                 ]);
 
                 // Create inventory adjustment log
@@ -204,6 +222,16 @@ class POSController extends Controller
             // Restock items
             foreach ($sale->items as $item) {
                 $product = $item->product;
+                
+                // Restock size-wise if tracked
+                $size = $item['size'] ?? null;
+                if ($product->size_stock && $size && isset($product->size_stock[$size])) {
+                    $sizeStock = $product->size_stock;
+                    $sizeStock[$size] += $item['quantity'];
+                    $product->size_stock = $sizeStock;
+                    $product->save();
+                }
+                
                 $product->increment('quantity', $item->quantity);
 
                 // Inventory Adjustment log

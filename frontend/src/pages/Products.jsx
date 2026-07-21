@@ -52,8 +52,8 @@ const Products = () => {
     // Form fields
     const [prodForm, setProdForm] = useState({
         name: '', sku: '', barcode: '', category_id: '', brand_id: '',
-        purchase_price: '', selling_price: '', quantity: '', low_stock_warning: '',
-        sizes: '', colors: '', image: null
+        purchase_price: '', selling_price: '', sale_price: '', quantity: '', low_stock_warning: '',
+        sizes: '', colors: '', size_stock: {}, color_stock: {}, image: null
     });
     const [catForm, setCatForm] = useState({ name: '', description: '' });
     const [brandForm, setBrandForm] = useState({ name: '', description: '' });
@@ -132,15 +132,38 @@ const Products = () => {
         if (prodForm.brand_id) formData.append('brand_id', prodForm.brand_id);
         formData.append('purchase_price', prodForm.purchase_price);
         formData.append('selling_price', prodForm.selling_price);
-        formData.append('quantity', prodForm.quantity);
-        formData.append('low_stock_warning', prodForm.low_stock_warning);
-        
-        // Parse comma list of sizes/colors into arrays
+        formData.append('sale_price', prodForm.sale_price !== null && prodForm.sale_price !== undefined ? prodForm.sale_price : '');
         const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
         const colorArr = prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
+        let calculatedQuantity = prodForm.quantity;
+        if (sizeArr.length > 0) {
+            calculatedQuantity = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
+        } else if (colorArr.length > 0) {
+            calculatedQuantity = colorArr.reduce((sum, c) => sum + (parseInt(prodForm.color_stock?.[c]) || 0), 0);
+        }
+        formData.append('quantity', calculatedQuantity);
+        formData.append('low_stock_warning', prodForm.low_stock_warning);
         
         sizeArr.forEach((s, i) => formData.append(`sizes[${i}]`, s));
         colorArr.forEach((c, i) => formData.append(`colors[${i}]`, c));
+
+        // Submit size_stock as JSON string
+        if (sizeArr.length > 0 && prodForm.size_stock) {
+            const filteredSizeStock = {};
+            sizeArr.forEach(s => {
+                filteredSizeStock[s] = parseInt(prodForm.size_stock[s]) || 0;
+            });
+            formData.append('size_stock', JSON.stringify(filteredSizeStock));
+        }
+
+        // Submit color_stock as JSON string
+        if (colorArr.length > 0 && prodForm.color_stock) {
+            const filteredColorStock = {};
+            colorArr.forEach(c => {
+                filteredColorStock[c] = parseInt(prodForm.color_stock[c]) || 0;
+            });
+            formData.append('color_stock', JSON.stringify(filteredColorStock));
+        }
 
         if (prodForm.image) {
             formData.append('image', prodForm.image);
@@ -165,8 +188,8 @@ const Products = () => {
                 setEditingProduct(null);
                 setProdForm({
                     name: '', sku: '', barcode: '', category_id: '', brand_id: '',
-                    purchase_price: '', selling_price: '', quantity: '', low_stock_warning: '',
-                    sizes: '', colors: '', image: null
+                    purchase_price: '', selling_price: '', sale_price: '', quantity: '', low_stock_warning: '',
+                    sizes: '', colors: '', size_stock: {}, color_stock: {}, image: null
                 });
             }
         } catch (err) {
@@ -184,10 +207,13 @@ const Products = () => {
             brand_id: prod.brand_id || '',
             purchase_price: prod.purchase_price,
             selling_price: prod.selling_price,
+            sale_price: prod.sale_price || '',
             quantity: prod.quantity,
             low_stock_warning: prod.low_stock_warning,
             sizes: prod.sizes ? prod.sizes.join(', ') : '',
             colors: prod.colors ? prod.colors.join(', ') : '',
+            size_stock: prod.size_stock || {},
+            color_stock: prod.color_stock || {},
             image: null
         });
         setProductModalOpen(true);
@@ -301,7 +327,22 @@ const Products = () => {
         { header: 'Category', accessor: 'category', render: (val) => val?.name || '-' },
         { header: 'Brand', accessor: 'brand', render: (val) => val?.name || '-' },
         { header: 'Purchase Cost', accessor: 'purchase_price', render: (val) => formatCurrency(val) },
-        { header: 'Retail Price', accessor: 'selling_price', render: (val) => formatCurrency(val) },
+        {
+            header: 'Retail Price',
+            accessor: 'selling_price',
+            render: (val, row) => {
+                const hasSale = row.sale_price && parseFloat(row.sale_price) > 0;
+                if (hasSale) {
+                    return (
+                        <div>
+                            <span className="line-through text-xs text-slate-400 mr-2">{formatCurrency(val)}</span>
+                            <span className="font-bold text-slate-800 dark:text-white">{formatCurrency(row.sale_price)}</span>
+                        </div>
+                    );
+                }
+                return <span className="font-bold">{formatCurrency(val)}</span>;
+            }
+        },
         {
             header: 'Qty in Stock',
             accessor: 'quantity',
@@ -309,9 +350,19 @@ const Products = () => {
                 const isLow = val <= row.low_stock_warning;
                 return (
                     <div>
-                        <span className={`font-extrabold ${isLow ? 'text-rose-600 dark:text-rose-455' : 'text-slate-850 dark:text-white'}`}>
+                        <span className={`font-extrabold ${isLow ? 'text-rose-600 dark:text-rose-455' : 'text-slate-800 dark:text-white'}`}>
                             {val} Units
                         </span>
+                        {row.size_stock && Object.keys(row.size_stock).length > 0 && (
+                            <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                Sizes: {Object.entries(row.size_stock).map(([size, qty]) => `${size}: ${qty}`).join(' | ')}
+                            </span>
+                        )}
+                        {row.color_stock && Object.keys(row.color_stock).length > 0 && (
+                            <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                Colors: {Object.entries(row.color_stock).map(([color, qty]) => `${color}: ${qty}`).join(' | ')}
+                            </span>
+                        )}
                         {isLow && <span className="block text-[8px] font-bold text-rose-500 uppercase mt-0.5">Low Stock Alert</span>}
                     </div>
                 );
@@ -416,7 +467,15 @@ const Products = () => {
                 <div>
                     {activeTab === 'products' && (
                         <button
-                            onClick={() => { setEditingProduct(null); setProductModalOpen(true); }}
+                            onClick={() => {
+                                setEditingProduct(null);
+                                setProdForm({
+                                    name: '', sku: '', barcode: '', category_id: '', brand_id: '',
+                                    purchase_price: '', selling_price: '', sale_price: '', quantity: '', low_stock_warning: '',
+                                    sizes: '', colors: '', size_stock: {}, color_stock: {}, image: null
+                                });
+                                setProductModalOpen(true);
+                            }}
                             className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold shadow-md shadow-indigo-600/10 transition"
                         >
                             <Plus className="w-4.5 h-4.5" />
@@ -623,7 +682,7 @@ const Products = () => {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-4">
+                    <div className="grid grid-cols-5 gap-4">
                         <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Cost Price *</label>
                             <input
@@ -649,13 +708,28 @@ const Products = () => {
                             />
                         </div>
                         <div>
+                            <label className="block text-xs font-bold uppercase tracking-wider text-slate-550 mb-1">Sale Price</label>
+                            <input
+                                type="number"
+                                step="0.01"
+                                value={prodForm.sale_price}
+                                onChange={(e) => setProdForm({ ...prodForm, sale_price: e.target.value })}
+                                className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
+                                placeholder="0.00"
+                            />
+                        </div>
+                        <div>
                             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Stock Quantity *</label>
                             <input
                                 type="number"
                                 required
+                                disabled={
+                                    (prodForm.sizes && prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean).length > 0) ||
+                                    (prodForm.colors && prodForm.colors.split(',').map(c => c.trim()).filter(Boolean).length > 0)
+                                }
                                 value={prodForm.quantity}
                                 onChange={(e) => setProdForm({ ...prodForm, quantity: e.target.value })}
-                                className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
+                                className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none disabled:bg-slate-100 dark:disabled:bg-slate-900"
                                 placeholder="0"
                             />
                         </div>
@@ -678,7 +752,18 @@ const Products = () => {
                             <input
                                 type="text"
                                 value={prodForm.sizes}
-                                onChange={(e) => setProdForm({ ...prodForm, sizes: e.target.value })}
+                                onChange={(e) => {
+                                    const newSizes = e.target.value;
+                                    const sizeArr = newSizes ? newSizes.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                    const colorArr = prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
+                                    let totalQty = prodForm.quantity;
+                                    if (sizeArr.length > 0) {
+                                        totalQty = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
+                                    } else if (colorArr.length > 0) {
+                                        totalQty = colorArr.reduce((sum, c) => sum + (parseInt(prodForm.color_stock?.[c]) || 0), 0);
+                                    }
+                                    setProdForm({ ...prodForm, sizes: newSizes, quantity: totalQty });
+                                }}
                                 className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
                                 placeholder="E.g. S, M, L, XL"
                             />
@@ -688,12 +773,92 @@ const Products = () => {
                             <input
                                 type="text"
                                 value={prodForm.colors}
-                                onChange={(e) => setProdForm({ ...prodForm, colors: e.target.value })}
+                                onChange={(e) => {
+                                    const newColors = e.target.value;
+                                    const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                    const colorArr = newColors ? newColors.split(',').map(c => c.trim()).filter(Boolean) : [];
+                                    let totalQty = prodForm.quantity;
+                                    if (sizeArr.length > 0) {
+                                        totalQty = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
+                                    } else if (colorArr.length > 0) {
+                                        totalQty = colorArr.reduce((sum, c) => sum + (parseInt(prodForm.color_stock?.[c]) || 0), 0);
+                                    }
+                                    setProdForm({ ...prodForm, colors: newColors, quantity: totalQty });
+                                }}
                                 className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
                                 placeholder="E.g. Red, Black, Royal Blue"
                             />
                         </div>
                     </div>
+
+                    {/* Size-wise stock quantities */}
+                    {prodForm.sizes && prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean).length > 0 && (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border dark:border-slate-800">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Stock per Size</h4>
+                            <div className="grid grid-cols-4 gap-3">
+                                {prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean).map(size => (
+                                    <div key={size}>
+                                        <label className="block text-[10px] font-bold text-slate-400 mb-1">{size}</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={prodForm.size_stock?.[size] ?? ''}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                const newStock = { ...prodForm.size_stock, [size]: val };
+                                                const totalQty = Object.values(newStock).reduce((sum, v) => sum + v, 0);
+                                                setProdForm({
+                                                    ...prodForm,
+                                                    size_stock: newStock,
+                                                    quantity: totalQty
+                                                });
+                                            }}
+                                            className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-xs focus:outline-none"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Color-wise stock quantities */}
+                    {prodForm.colors && prodForm.colors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
+                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border dark:border-slate-800">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Stock per Color</h4>
+                            <div className="grid grid-cols-4 gap-3">
+                                {prodForm.colors.split(',').map(c => c.trim()).filter(Boolean).map(color => (
+                                    <div key={color}>
+                                        <label className="block text-[10px] font-bold text-slate-400 mb-1">{color}</label>
+                                        <input
+                                            type="number"
+                                            min="0"
+                                            value={prodForm.color_stock?.[color] ?? ''}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value) || 0;
+                                                const newStock = { ...prodForm.color_stock, [color]: val };
+                                                
+                                                const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
+                                                let totalQty;
+                                                if (sizeArr.length > 0) {
+                                                    totalQty = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
+                                                } else {
+                                                    totalQty = Object.values(newStock).reduce((sum, v) => sum + v, 0);
+                                                }
+                                                setProdForm({
+                                                    ...prodForm,
+                                                    color_stock: newStock,
+                                                    quantity: totalQty
+                                                });
+                                            }}
+                                            className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-xs focus:outline-none"
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Product Image</label>

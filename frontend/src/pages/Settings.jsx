@@ -112,10 +112,24 @@ const Settings = () => {
     };
 
     // Download backup file
-    const downloadBackupFile = (filename) => {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+    const downloadBackupFile = async (filename) => {
         const safeFilename = filename.endsWith('.sql') ? filename.slice(0, -4) : filename;
-        window.open(`${apiUrl}/backups/${safeFilename}?token=${localStorage.getItem('token')}`, '_blank');
+        try {
+            const response = await axios.get(`/backups/${safeFilename}`, {
+                responseType: 'blob',
+            });
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.setAttribute('download', filename.endsWith('.sql') ? filename : `${filename}.sql`);
+            document.body.appendChild(link);
+            link.click();
+            link.parentNode.removeChild(link);
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error('Download failed:', err);
+            alert('Failed to download backup file.');
+        }
     };
 
     // Delete backup

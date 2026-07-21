@@ -60,6 +60,7 @@ const POS = () => {
     const [customers, setCustomers] = useState([]);
     const [selectedCustomerId, setSelectedCustomerId] = useState('');
     const [cartDiscount, setCartDiscount] = useState(0); // overall discount
+    const [discountType, setDiscountType] = useState('percentage'); // 'percentage' or 'fixed'
     const [paymentMethod, setPaymentMethod] = useState('cash');
     const [checkoutNotes, setCheckoutNotes] = useState('');
     const [submittingCheckout, setSubmittingCheckout] = useState(false);
@@ -74,6 +75,7 @@ const POS = () => {
     const [checkoutSuccessOpen, setCheckoutSuccessOpen] = useState(false);
     const [completedInvoice, setCompletedInvoice] = useState(null);
     const [printType, setPrintType] = useState('thermal'); // 'thermal' or 'a4'
+    const [modalTab, setModalTab] = useState('invoice');
 
     const barcodeInputRef = useRef(null);
 
@@ -121,6 +123,7 @@ const POS = () => {
             selectedCustomerId,
             customerName: currentCustomer ? currentCustomer.name : 'Walk-In Customer',
             cartDiscount,
+            discountType,
             paymentMethod,
             checkoutNotes,
             heldAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -131,6 +134,7 @@ const POS = () => {
         // Reset cart and checkout states
         setCart([]);
         setCartDiscount(0);
+        setDiscountType('percentage');
         setCheckoutNotes('');
         setPaymentMethod('cash');
         
@@ -157,6 +161,7 @@ const POS = () => {
                 selectedCustomerId,
                 customerName: currentCustomer ? currentCustomer.name : 'Walk-In Customer',
                 cartDiscount,
+                discountType,
                 paymentMethod,
                 checkoutNotes,
                 heldAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -173,6 +178,7 @@ const POS = () => {
         setCart(targetOrder.cart);
         setSelectedCustomerId(targetOrder.selectedCustomerId);
         setCartDiscount(targetOrder.cartDiscount);
+        setDiscountType(targetOrder.discountType || 'percentage');
         setPaymentMethod(targetOrder.paymentMethod);
         setCheckoutNotes(targetOrder.checkoutNotes || '');
         setHeldOrdersModalOpen(false);
@@ -274,13 +280,19 @@ const POS = () => {
 
     // Cart Operations
     const addToCart = (product) => {
-        if (product.quantity <= 0) {
-            alert('This product is out of stock!');
-            return;
-        }
-
         const defaultSize = product.sizes && product.sizes.length > 0 ? product.sizes[0] : '';
         const defaultColor = product.colors && product.colors.length > 0 ? product.colors[0] : '';
+
+        // Find available stock for the selected size
+        let availableStock = product.quantity;
+        if (product.size_stock && defaultSize && product.size_stock[defaultSize] !== undefined) {
+            availableStock = parseInt(product.size_stock[defaultSize]) || 0;
+        }
+
+        if (availableStock <= 0) {
+            alert('This size is out of stock!');
+            return;
+        }
 
         // Check if item exists with same ID, size, and color
         const existingIdx = cart.findIndex(
@@ -289,8 +301,8 @@ const POS = () => {
 
         if (existingIdx > -1) {
             const currentQty = cart[existingIdx].quantity;
-            if (currentQty >= product.quantity) {
-                alert('Cannot add more items. Max stock reached.');
+            if (currentQty >= availableStock) {
+                alert(`Cannot add more items. Max stock reached for size ${defaultSize}.`);
                 return;
             }
             const updated = [...cart];
@@ -306,15 +318,17 @@ const POS = () => {
                     sku: product.sku,
                     barcode: product.barcode,
                     unit_price: parseFloat(product.selling_price),
+                    original_price: parseFloat(product.selling_price),
                     purchase_price: parseFloat(product.purchase_price),
-                    max_quantity: product.quantity,
+                    max_quantity: availableStock,
                     quantity: 1,
-                    discount: 0,
+                    discount: product.sale_price && parseFloat(product.sale_price) > 0 ? (parseFloat(product.selling_price) - parseFloat(product.sale_price)) : 0,
                     tax: 0,
                     size: defaultSize,
                     color: defaultColor,
                     sizes: product.sizes || [],
-                    colors: product.colors || []
+                    colors: product.colors || [],
+                    size_stock: product.size_stock || {}
                 }
             ]);
             playBeep();
@@ -327,8 +341,14 @@ const POS = () => {
             removeFromCart(idx);
             return;
         }
-        if (newQty > item.max_quantity) {
-            alert(`Insufficient stock. Only ${item.max_quantity} items available.`);
+        
+        let availableStock = item.max_quantity;
+        if (item.size_stock && item.size && item.size_stock[item.size] !== undefined) {
+            availableStock = parseInt(item.size_stock[item.size]) || 0;
+        }
+        
+        if (newQty > availableStock) {
+            alert(`Insufficient stock. Only ${availableStock} items available for size ${item.size}.`);
             return;
         }
         const updated = [...cart];
@@ -340,8 +360,21 @@ const POS = () => {
         const updated = [...cart];
         updated[idx][field] = value;
         
-        // Re-check duplicates after variation edit
         const item = updated[idx];
+        
+        // Update max_quantity if size changed
+        if (field === 'size') {
+            let availableStock = item.max_quantity;
+            if (item.size_stock && value && item.size_stock[value] !== undefined) {
+                availableStock = parseInt(item.size_stock[value]) || 0;
+            }
+            item.max_quantity = availableStock;
+            if (item.quantity > availableStock) {
+                item.quantity = availableStock;
+            }
+        }
+        
+        // Re-check duplicates after variation edit
         const duplicateIdx = updated.findIndex(
             (it, itIdx) => itIdx !== idx && it.product_id === item.product_id && it.size === item.size && it.color === item.color
         );
@@ -370,9 +403,17 @@ const POS = () => {
         return cart.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
     };
 
+    const getPromoDiscount = () => {
+        return cart.reduce((total, item) => total + ((item.discount || 0) * item.quantity), 0);
+    };
+
     const getCartDiscountAmount = () => {
-        // Flat rate discount from bottom panel
-        return parseFloat(cartDiscount) || 0;
+        const subAfterPromo = getCartSubtotal() - getPromoDiscount();
+        if (discountType === 'percentage') {
+            return subAfterPromo * ((parseFloat(cartDiscount) || 0) / 100);
+        } else {
+            return parseFloat(cartDiscount) || 0;
+        }
     };
 
     const getCartTaxAmount = (subtotal, discount) => {
@@ -383,9 +424,10 @@ const POS = () => {
 
     const getCartPayableAmount = () => {
         const sub = getCartSubtotal();
-        const disc = getCartDiscountAmount();
-        const tax = getCartTaxAmount(sub, disc);
-        return Math.max(0, sub - disc + tax);
+        const promo = getPromoDiscount();
+        const manual = getCartDiscountAmount();
+        const tax = getCartTaxAmount(sub, promo + manual);
+        return Math.max(0, sub - promo - manual + tax);
     };
 
     // Customer CRUD
@@ -426,6 +468,8 @@ const POS = () => {
         const discount = getCartDiscountAmount();
         const tax = getCartTaxAmount(subtotal, discount);
         const payable = getCartPayableAmount();
+        const totalItemDiscounts = cart.reduce((total, item) => total + ((item.discount || 0) * item.quantity), 0);
+        const totalDiscount = totalItemDiscounts + discount;
 
         const payload = {
             customer_id: selectedCustomerId || null,
@@ -433,12 +477,13 @@ const POS = () => {
                 product_id: item.product_id,
                 quantity: item.quantity,
                 unit_price: item.unit_price,
-                discount: 0, // item-specific discount is 0 since we apply flat overall
+                original_price: item.original_price,
+                discount: item.discount, // Save item-specific savings discount
                 tax: 0,
                 size: item.size,
                 color: item.color
             })),
-            discount_amount: discount,
+            discount_amount: totalDiscount,
             tax_amount: tax,
             payable_amount: payable,
             paid_amount: payable, // for simplicity, assume full payment
@@ -631,8 +676,19 @@ const POS = () => {
                                         </div>
                                         <div className="mt-4">
                                             <p className="text-[9px] text-slate-400">SKU: {prod.sku}</p>
-                                            <p className="text-sm font-extrabold text-slate-950 dark:text-white mt-0.5">
-                                                {formatCurrency(prod.selling_price)}
+                                            <p className="text-sm font-extrabold text-slate-950 dark:text-white mt-0.5 flex flex-wrap gap-1 items-center">
+                                                {prod.sale_price && parseFloat(prod.sale_price) > 0 ? (
+                                                    <>
+                                                        <span className="line-through text-xs text-slate-400 font-normal mr-1">
+                                                            {formatCurrency(prod.selling_price)}
+                                                        </span>
+                                                        <span className="text-indigo-650 dark:text-indigo-400 font-extrabold">
+                                                            {formatCurrency(prod.sale_price)}
+                                                        </span>
+                                                    </>
+                                                ) : (
+                                                    <span>{formatCurrency(prod.selling_price)}</span>
+                                                )}
                                             </p>
                                         </div>
                                     </button>
@@ -698,7 +754,16 @@ const POS = () => {
                                 <div className="flex items-start justify-between gap-2">
                                     <div className="flex-1">
                                         <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">{item.name}</h4>
-                                        <p className="text-[10px] text-slate-400 mt-0.5">SKU: {item.sku}</p>
+                                        <p className="text-[10px] text-slate-400 mt-0.5">
+                                            SKU: {item.sku} • {item.discount > 0 ? (
+                                                <>
+                                                    <span className="line-through mr-1 text-slate-400">{formatCurrency(item.unit_price)}</span>
+                                                    <span className="text-indigo-600 dark:text-indigo-400 font-bold">{formatCurrency(item.unit_price - item.discount)}</span>
+                                                </>
+                                            ) : (
+                                                <span>{formatCurrency(item.unit_price)}</span>
+                                            )}
+                                        </p>
                                     </div>
                                     <button
                                         onClick={() => removeFromCart(idx)}
@@ -755,7 +820,7 @@ const POS = () => {
 
                                     {/* Subtotal */}
                                     <span className="text-xs font-extrabold text-slate-900 dark:text-white">
-                                        {formatCurrency(item.unit_price * item.quantity)}
+                                        {formatCurrency((item.unit_price - item.discount) * item.quantity)}
                                     </span>
                                 </div>
                             </div>
@@ -766,26 +831,62 @@ const POS = () => {
                 {/* Checkout Summary panel */}
                 <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 space-y-3">
                     
+                    {/* Subtotal */}
+                    <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+                        <span>Subtotal:</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-200">
+                            {formatCurrency(getCartSubtotal())}
+                        </span>
+                    </div>
+
+                    {/* Promo Savings */}
+                    {getPromoDiscount() > 0 && (
+                        <div className="flex items-center justify-between text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            <span>Promo Discount:</span>
+                            <span>
+                                -{formatCurrency(getPromoDiscount())}
+                            </span>
+                        </div>
+                    )}
+
                     {/* Discount Input */}
                     <div className="flex items-center justify-between gap-4 text-xs font-medium">
-                        <span className="text-slate-500 dark:text-slate-400">Flat Discount:</span>
-                        <div className="relative w-28">
+                        <span className="text-slate-500 dark:text-slate-400">Manual Discount:</span>
+                        <div className="flex items-center gap-1.5 w-36">
+                            <select
+                                value={discountType}
+                                onChange={(e) => setDiscountType(e.target.value)}
+                                className="px-1.5 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs focus:outline-none font-bold text-slate-900 dark:text-slate-100"
+                            >
+                                <option value="percentage" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">%</option>
+                                <option value="fixed" className="bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">Rs.</option>
+                            </select>
                             <input
                                 type="number"
                                 min="0"
                                 value={cartDiscount}
                                 onChange={(e) => setCartDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                                className="w-full pl-3 pr-6 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-right font-bold focus:outline-none"
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg text-right font-bold focus:outline-none text-slate-900 dark:text-slate-100"
+                                placeholder="0"
                             />
-                            <Percent className="w-3 h-3 text-slate-400 absolute right-2 top-2" />
                         </div>
                     </div>
+
+                    {/* Total Discount Display */}
+                    {(getPromoDiscount() > 0 || getCartDiscountAmount() > 0) && (
+                        <div className="flex items-center justify-between text-xs font-bold text-slate-700 dark:text-slate-300 border-t border-dashed border-slate-205 dark:border-slate-800 pt-2">
+                            <span>Total Discount:</span>
+                            <span className="text-emerald-650 dark:text-emerald-400 font-extrabold">
+                                -{formatCurrency(getPromoDiscount() + getCartDiscountAmount())}
+                            </span>
+                        </div>
+                    )}
 
                     {/* Tax Indicator */}
                     <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
                         <span>GST/Sales Tax ({settings.tax_rate || 0}%):</span>
                         <span className="font-bold text-slate-700 dark:text-slate-200">
-                            {formatCurrency(getCartTaxAmount(getCartSubtotal(), getCartDiscountAmount()))}
+                            {formatCurrency(getCartTaxAmount(getCartSubtotal(), getPromoDiscount() + getCartDiscountAmount()))}
                         </span>
                     </div>
 
@@ -915,7 +1016,10 @@ const POS = () => {
                     <div className="space-y-4 max-h-[400px] overflow-y-auto pr-1">
                         {heldOrders.map((order) => {
                             const subtotal = order.cart.reduce((total, item) => total + (item.unit_price * item.quantity), 0);
-                            const disc = parseFloat(order.cartDiscount) || 0;
+                            const currentDiscountType = order.discountType || 'percentage';
+                            const disc = currentDiscountType === 'percentage'
+                                ? subtotal * ((parseFloat(order.cartDiscount) || 0) / 100)
+                                : parseFloat(order.cartDiscount) || 0;
                             const taxRate = parseFloat(settings.tax_rate) || 0;
                             const taxable = Math.max(0, subtotal - disc);
                             const tax = taxable * (taxRate / 100);
@@ -970,7 +1074,10 @@ const POS = () => {
             {/* Modal: Checkout Success Invoice/Receipt */}
             <Modal
                 isOpen={checkoutSuccessOpen}
-                onClose={() => setCheckoutSuccessOpen(false)}
+                onClose={() => {
+                    setCheckoutSuccessOpen(false);
+                    setModalTab('invoice');
+                }}
                 title="Checkout Completed Successfully!"
                 size="lg"
             >
@@ -1030,18 +1137,23 @@ const POS = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {completedInvoice.items?.map((item) => (
-                                                <tr key={item.id}>
-                                                    <td className="py-1">
-                                                        {item.product?.name}
-                                                        <span className="block text-[8px] text-slate-550">
-                                                            {item.size || '-'}/{item.color || '-'} • @ {formatCurrency(item.unit_price)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-1 text-center">{item.quantity}</td>
-                                                    <td className="py-1 text-right">{formatCurrency(item.subtotal)}</td>
-                                                </tr>
-                                            ))}
+                                            {completedInvoice.items?.map((item) => {
+                                                const originalPrice = parseFloat(item.original_price);
+                                                const unitPrice = parseFloat(item.unit_price);
+                                                const hasDiscount = !isNaN(originalPrice) && originalPrice > unitPrice;
+                                                return (
+                                                    <tr key={item.id}>
+                                                        <td className="py-1">
+                                                            {item.product?.name}
+                                                            <span className="block text-[8px] text-slate-555">
+                                                                {item.size || '-'}/{item.color || '-'} • @ {hasDiscount && <span className="line-through mr-1 text-slate-400">{formatCurrency(originalPrice)}</span>}{formatCurrency(unitPrice)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-1 text-center">{item.quantity}</td>
+                                                        <td className="py-1 text-right">{formatCurrency(item.subtotal)}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                     <div className="border-t border-dashed border-black pt-2 space-y-1 text-right text-[10px]">
@@ -1062,12 +1174,12 @@ const POS = () => {
                                             <div>
                                                 <h2 className="text-lg font-bold uppercase tracking-wider">{settings.shop_name}</h2>
                                                 <p className="text-slate-500 mt-1">{settings.shop_address}</p>
-                                                <p className="text-slate-500">Phone: {settings.shop_phone} | Email: {settings.shop_email}</p>
+                                                <p className="text-slate-550">Phone: {settings.shop_phone} | Email: {settings.shop_email}</p>
                                             </div>
                                             <div className="text-right">
                                                 <h3 className="text-xl font-extrabold text-slate-400">INVOICE</h3>
                                                 <p className="font-semibold mt-1">Ref: {completedInvoice.invoice_number}</p>
-                                                <p className="text-slate-500">Date: {new Date(completedInvoice.sale_date).toLocaleDateString()}</p>
+                                                <p className="text-slate-555">Date: {new Date(completedInvoice.sale_date).toLocaleDateString()}</p>
                                             </div>
                                         </div>
 
@@ -1086,7 +1198,7 @@ const POS = () => {
                                             <div className="text-right">
                                                 <h4 className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Payment Method:</h4>
                                                 <p className="font-bold capitalize">{completedInvoice.payment_method?.replace('_', ' ')}</p>
-                                                <p className="text-slate-500 mt-1">Status: Paid In Full</p>
+                                                <p className="text-slate-550 mt-1">Status: Paid In Full</p>
                                             </div>
                                         </div>
 
@@ -1101,18 +1213,26 @@ const POS = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y border-b">
-                                                {completedInvoice.items?.map((item) => (
-                                                    <tr key={item.id}>
-                                                        <td className="p-2">
-                                                            <span className="font-bold">{item.product?.name}</span>
-                                                            <span className="block text-[10px] text-slate-500 mt-0.5">Size: {item.size || 'N/A'} | Color: {item.color || 'N/A'}</span>
-                                                        </td>
-                                                        <td className="p-2 text-center text-slate-500">{item.product?.sku}</td>
-                                                        <td className="p-2 text-center">{item.quantity}</td>
-                                                        <td className="p-2 text-right">{formatCurrency(item.unit_price)}</td>
-                                                        <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
-                                                    </tr>
-                                                ))}
+                                                {completedInvoice.items?.map((item) => {
+                                                    const originalPrice = parseFloat(item.original_price);
+                                                    const unitPrice = parseFloat(item.unit_price);
+                                                    const hasDiscount = !isNaN(originalPrice) && originalPrice > unitPrice;
+                                                    return (
+                                                        <tr key={item.id}>
+                                                            <td className="p-2">
+                                                                <span className="font-bold">{item.product?.name}</span>
+                                                                <span className="block text-[10px] text-slate-555 mt-0.5">Size: {item.size || 'N/A'} | Color: {item.color || 'N/A'}</span>
+                                                            </td>
+                                                            <td className="p-2 text-center text-slate-500">{item.product?.sku}</td>
+                                                            <td className="p-2 text-center">{item.quantity}</td>
+                                                            <td className="p-2 text-right">
+                                                                {hasDiscount && <span className="line-through text-xs text-slate-400 mr-2">{formatCurrency(originalPrice)}</span>}
+                                                                {formatCurrency(unitPrice)}
+                                                            </td>
+                                                            <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -1123,15 +1243,15 @@ const POS = () => {
                                         </div>
                                         <div className="w-1/3 space-y-1.5 text-right font-medium">
                                             <div className="flex justify-between">
-                                                <span className="text-slate-500">Subtotal:</span>
+                                                <span className="text-slate-555">Subtotal:</span>
                                                 <span>{formatCurrency(parseFloat(completedInvoice.payable_amount) - parseFloat(completedInvoice.tax_amount) + parseFloat(completedInvoice.discount_amount))}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-slate-500">Discount:</span>
+                                                <span className="text-slate-555">Discount:</span>
                                                 <span className="text-red-500">-{formatCurrency(completedInvoice.discount_amount)}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-slate-500">GST/Tax:</span>
+                                                <span className="text-slate-555">GST/Tax:</span>
                                                 <span>{formatCurrency(completedInvoice.tax_amount)}</span>
                                             </div>
                                             <div className="flex justify-between text-sm font-bold border-t pt-1.5">

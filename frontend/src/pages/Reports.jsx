@@ -100,6 +100,42 @@ const Reports = () => {
         }
     }, [activeTab, dateFrom, dateTo]);
 
+    const getSoldProductsData = () => {
+        const productMap = {};
+        salesReport.sales?.forEach(sale => {
+            sale.items?.forEach(item => {
+                const productId = item.product_id;
+                if (!productId) return;
+                const productName = item.product?.name || 'Unknown Product';
+                const sku = item.product?.sku || 'N/A';
+                const costPrice = parseFloat(item.product?.purchase_price || 0);
+                const qty = parseInt(item.quantity || 0);
+                const subtotal = parseFloat(item.subtotal || 0);
+                
+                if (!productMap[productId]) {
+                    productMap[productId] = {
+                        id: productId,
+                        name: productName,
+                        sku: sku,
+                        costPrice: costPrice,
+                        qtySold: 0,
+                        totalRevenue: 0,
+                        totalCost: 0,
+                    };
+                }
+                
+                productMap[productId].qtySold += qty;
+                productMap[productId].totalRevenue += subtotal;
+                productMap[productId].totalCost += (costPrice * qty);
+            });
+        });
+        
+        return Object.values(productMap).map(p => ({
+            ...p,
+            netProfit: p.totalRevenue - p.totalCost
+        })).sort((a, b) => b.netProfit - a.netProfit);
+    };
+
     // Columns config
     const salesColumns = [
         { header: 'Invoice', accessor: 'invoice_number', render: (val) => <span className="font-bold">{val}</span> },
@@ -109,18 +145,64 @@ const Reports = () => {
         { header: 'Discount', accessor: 'discount_amount', render: (val) => <span className="text-red-500">-{formatCurrency(val)}</span> },
         { header: 'Tax Paid', accessor: 'tax_amount', render: (val) => formatCurrency(val) },
         { header: 'Payable Net', accessor: 'payable_amount', render: (val) => <span className="font-bold text-slate-800 dark:text-white">{formatCurrency(val)}</span> },
+        {
+            header: 'Net Profit',
+            accessor: 'items',
+            render: (items, row) => {
+                const totalCost = items?.reduce((sum, item) => sum + (parseFloat(item.product?.purchase_price || 0) * item.quantity), 0) || 0;
+                const invoiceProfit = (parseFloat(row.payable_amount) - parseFloat(row.tax_amount)) - totalCost;
+                return (
+                    <span className={`font-bold ${invoiceProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {formatCurrency(invoiceProfit)}
+                    </span>
+                );
+            }
+        },
         { header: 'Payment', accessor: 'payment_method', render: (val) => <span className="capitalize">{val?.replace('_', ' ')}</span> }
+    ];
+
+    const soldProductColumns = [
+        { header: 'Product Name', accessor: 'name', render: (val, row) => (
+            <div>
+                <span className="font-bold text-slate-800 dark:text-white">{val}</span>
+                <span className="block text-[10px] text-slate-400">SKU: {row.sku}</span>
+            </div>
+        )},
+        { header: 'Cost Price', accessor: 'costPrice', render: (val) => formatCurrency(val) },
+        { header: 'Qty Sold', accessor: 'qtySold', render: (val) => <span className="font-semibold">{val} Units</span> },
+        { header: 'Total Revenue', accessor: 'totalRevenue', render: (val) => formatCurrency(val) },
+        { header: 'Total Cost', accessor: 'totalCost', render: (val) => formatCurrency(val) },
+        { 
+            header: 'Net Profit', 
+            accessor: 'netProfit', 
+            render: (val) => (
+                <span className={`font-bold ${val >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {formatCurrency(val)}
+                </span>
+            )
+        }
     ];
 
     const inventoryColumns = [
         { header: 'Garment Description', accessor: 'name', render: (val, row) => (
             <div>
                 <p className="font-bold">{val}</p>
+                {row.size_stock && Object.keys(row.size_stock).length > 0 && (
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                        Sizes: {Object.entries(row.size_stock).map(([sz, q]) => `${sz}: ${q}`).join(' | ')}
+                    </p>
+                )}
+                {row.colors && row.colors.length > 0 && (
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                        Colors: {row.colors.join(', ')}
+                    </p>
+                )}
                 <p className="text-[10px] text-slate-400">SKU: {row.sku} | Barcode: {row.barcode || '-'}</p>
             </div>
         )},
         { header: 'Cost Price', accessor: 'purchase_price', render: (val) => formatCurrency(val) },
         { header: 'Retail Price', accessor: 'selling_price', render: (val) => formatCurrency(val) },
+        { header: 'Unit Profit', accessor: 'id', render: (_, row) => formatCurrency(row.selling_price - row.purchase_price) },
         { header: 'Current Stock', accessor: 'quantity', render: (val) => <span className="font-semibold">{val} Units</span> },
         { header: 'Cost Value Asset', accessor: 'id', render: (_, row) => formatCurrency(row.quantity * row.purchase_price) },
         { header: 'Retail Value Asset', accessor: 'id', render: (_, row) => formatCurrency(row.quantity * row.selling_price) },
@@ -238,15 +320,44 @@ const Reports = () => {
                         </div>
                     )}
 
-                    {/* Sales detailed data */}
-                    <DataTable
-                        columns={salesColumns}
-                        data={salesReport.sales}
-                        loading={loading}
-                        csvData={salesReport.sales.map(s => [s.invoice_number, s.customer?.name || 'Walk-In', s.sale_date, s.payable_amount, s.payment_method])}
-                        csvHeaders={['Invoice Number', 'Customer', 'Date', 'Payable Amount', 'Payment Method']}
-                        csvFileName={`sales_report_${dateFrom}_to_${dateTo}.csv`}
-                    />
+                    {/* Tables grid/stack */}
+                    <div className="grid grid-cols-1 gap-6">
+                        {/* Invoice Sales & Profit Table */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">Invoice Sales & Profit Summary</h3>
+                                <p className="text-xs text-slate-500">Sales invoices with item cost, tax deduction, and calculated net profit.</p>
+                            </div>
+                            <DataTable
+                                columns={salesColumns}
+                                data={salesReport.sales}
+                                loading={loading}
+                                csvData={salesReport.sales.map(s => {
+                                    const totalCost = s.items?.reduce((sum, item) => sum + (parseFloat(item.product?.purchase_price || 0) * item.quantity), 0) || 0;
+                                    const invoiceProfit = (parseFloat(s.payable_amount) - parseFloat(s.tax_amount)) - totalCost;
+                                    return [s.invoice_number, s.customer?.name || 'Walk-In', s.sale_date, s.payable_amount, invoiceProfit, s.payment_method];
+                                })}
+                                csvHeaders={['Invoice Number', 'Customer', 'Date', 'Payable Amount', 'Net Profit', 'Payment Method']}
+                                csvFileName={`sales_report_${dateFrom}_to_${dateTo}.csv`}
+                            />
+                        </div>
+
+                        {/* Product-wise Sales & Profit Table */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm">
+                            <div>
+                                <h3 className="text-sm font-bold text-slate-800 dark:text-white">Product-wise Sales & Profit Breakdown</h3>
+                                <p className="text-xs text-slate-500">Aggregated quantities sold and generated profits for each unique garment type.</p>
+                            </div>
+                            <DataTable
+                                columns={soldProductColumns}
+                                data={getSoldProductsData()}
+                                loading={loading}
+                                csvData={getSoldProductsData().map(p => [p.name, p.sku, p.costPrice, p.qtySold, p.totalRevenue, p.totalCost, p.netProfit])}
+                                csvHeaders={['Product Name', 'SKU', 'Cost Price', 'Quantity Sold', 'Total Revenue', 'Total Cost', 'Net Profit']}
+                                csvFileName={`product_profit_report_${dateFrom}_to_${dateTo}.csv`}
+                            />
+                        </div>
+                    </div>
                 </div>
             )}
 

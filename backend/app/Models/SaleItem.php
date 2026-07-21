@@ -19,6 +19,7 @@ class SaleItem extends Model
         'subtotal',
         'size',
         'color',
+        'original_price',
     ];
 
     protected $casts = [
@@ -27,6 +28,7 @@ class SaleItem extends Model
         'tax' => 'decimal:2',
         'subtotal' => 'decimal:2',
         'quantity' => 'integer',
+        'original_price' => 'decimal:2',
     ];
 
     public function sale()

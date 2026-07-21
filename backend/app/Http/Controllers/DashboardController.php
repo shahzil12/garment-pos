@@ -22,28 +22,40 @@ class DashboardController extends Controller
         // Today's Sales
         $todaySales = Sale::whereDate('sale_date', $today)->where('status', 'completed')->sum('payable_amount');
 
-        // Today's Profit
-        $todayProfit = DB::table('sale_items')
+        // Today's Profit (excluding tax and including overall discounts)
+        $todayRevenueExTax = Sale::whereDate('sale_date', $today)
+            ->where('status', 'completed')
+            ->sum(DB::raw('payable_amount - tax_amount'));
+
+        $todayCogs = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->join('products', 'sale_items.product_id', '=', 'products.id')
             ->whereDate('sales.sale_date', $today)
             ->where('sales.status', 'completed')
-            ->select(DB::raw('SUM(sale_items.subtotal - (products.purchase_price * sale_items.quantity)) as profit'))
-            ->first()->profit ?? 0;
+            ->select(DB::raw('SUM(products.purchase_price * sale_items.quantity) as cost'))
+            ->first()->cost ?? 0;
+
+        $todayProfit = $todayRevenueExTax - $todayCogs;
 
         // Monthly Sales
         $monthlySales = Sale::whereBetween('sale_date', [$startOfMonth, $endOfMonth])
             ->where('status', 'completed')
             ->sum('payable_amount');
 
-        // Monthly Profit
-        $monthlyProfit = DB::table('sale_items')
+        // Monthly Profit (excluding tax and including overall discounts)
+        $monthlyRevenueExTax = Sale::whereBetween('sale_date', [$startOfMonth, $endOfMonth])
+            ->where('status', 'completed')
+            ->sum(DB::raw('payable_amount - tax_amount'));
+
+        $monthlyCogs = DB::table('sale_items')
             ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
             ->join('products', 'sale_items.product_id', '=', 'products.id')
             ->whereBetween('sales.sale_date', [$startOfMonth, $endOfMonth])
             ->where('sales.status', 'completed')
-            ->select(DB::raw('SUM(sale_items.subtotal - (products.purchase_price * sale_items.quantity)) as profit'))
-            ->first()->profit ?? 0;
+            ->select(DB::raw('SUM(products.purchase_price * sale_items.quantity) as cost'))
+            ->first()->cost ?? 0;
+
+        $monthlyProfit = $monthlyRevenueExTax - $monthlyCogs;
 
         // 2. Expenses (Today & Monthly)
         $todayExpenses = Expense::whereDate('date', $today)->sum('amount');

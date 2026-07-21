@@ -1,0 +1,24 @@
+# Dependency directories
+**/node_modules/
+/backend/vendor/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDEs and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build/cache outputs
+/backend/.phpunit.result.cache
+/frontend/dist/
+/frontend/dist-ssr/

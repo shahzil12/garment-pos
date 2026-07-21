@@ -145,6 +145,7 @@ class ProductController extends Controller
 
     public function store(Request $request)
     {
+        \Log::info('Store Product request data:', $request->all());
         $request->validate([
             'category_id' => 'nullable|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
@@ -153,15 +154,44 @@ class ProductController extends Controller
             'barcode' => 'nullable|string|unique:products,barcode',
             'purchase_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
+            'sale_price' => 'nullable|numeric|min:0',
             'quantity' => 'required|integer|min:0',
             'low_stock_warning' => 'required|integer|min:0',
             'sizes' => 'nullable|array',
             'colors' => 'nullable|array',
+            'size_stock' => 'nullable|string',
+            'color_stock' => 'nullable|string',
             'image' => 'nullable|image|max:2048', // 2MB Max
         ]);
 
         $data = $request->except('image');
         $data['slug'] = Str::slug($request->name);
+
+        if ($request->has('sizes') && is_array($request->sizes) && count($request->sizes) > 0) {
+            if ($request->filled('size_stock')) {
+                $sizeStock = json_decode($request->size_stock, true);
+                if (is_array($sizeStock)) {
+                    $data['size_stock'] = $sizeStock;
+                    $data['quantity'] = array_sum($sizeStock);
+                }
+            }
+        } else {
+            $data['size_stock'] = null;
+        }
+
+        if ($request->has('colors') && is_array($request->colors) && count($request->colors) > 0) {
+            if ($request->filled('color_stock')) {
+                $colorStock = json_decode($request->color_stock, true);
+                if (is_array($colorStock)) {
+                    $data['color_stock'] = $colorStock;
+                    if (!isset($data['size_stock'])) {
+                        $data['quantity'] = array_sum($colorStock);
+                    }
+                }
+            }
+        } else {
+            $data['color_stock'] = null;
+        }
 
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('products', 'public');
@@ -190,6 +220,7 @@ class ProductController extends Controller
 
     public function update(Request $request, $id)
     {
+        \Log::info('Update Product ID ' . $id . ' request data:', $request->all());
         $product = Product::findOrFail($id);
 
         $request->validate([
@@ -200,15 +231,44 @@ class ProductController extends Controller
             'barcode' => "nullable|string|unique:products,barcode,{$id}",
             'purchase_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
+            'sale_price' => 'nullable|numeric|min:0',
             'quantity' => 'required|integer|min:0',
             'low_stock_warning' => 'required|integer|min:0',
             'sizes' => 'nullable|array',
             'colors' => 'nullable|array',
+            'size_stock' => 'nullable|string',
+            'color_stock' => 'nullable|string',
             'image' => 'nullable|image|max:2048', // 2MB Max
         ]);
 
         $data = $request->except(['image', '_method']);
         $data['slug'] = Str::slug($request->name);
+
+        if ($request->has('sizes') && is_array($request->sizes) && count($request->sizes) > 0) {
+            if ($request->filled('size_stock')) {
+                $sizeStock = json_decode($request->size_stock, true);
+                if (is_array($sizeStock)) {
+                    $data['size_stock'] = $sizeStock;
+                    $data['quantity'] = array_sum($sizeStock);
+                }
+            }
+        } else {
+            $data['size_stock'] = null;
+        }
+
+        if ($request->has('colors') && is_array($request->colors) && count($request->colors) > 0) {
+            if ($request->filled('color_stock')) {
+                $colorStock = json_decode($request->color_stock, true);
+                if (is_array($colorStock)) {
+                    $data['color_stock'] = $colorStock;
+                    if (!isset($data['size_stock'])) {
+                        $data['quantity'] = array_sum($colorStock);
+                    }
+                }
+            }
+        } else {
+            $data['color_stock'] = null;
+        }
 
         if ($request->hasFile('image')) {
             // Delete old image if exists

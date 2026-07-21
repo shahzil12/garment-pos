@@ -101,6 +101,16 @@ const Inventory = () => {
             render: (val) => (
                 <div>
                     <p className="font-bold text-slate-800 dark:text-white">{val?.name}</p>
+                    {val?.size_stock && Object.keys(val.size_stock).length > 0 && (
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                            Sizes: {Object.entries(val.size_stock).map(([sz, q]) => `${sz}: ${q}`).join(' | ')}
+                        </p>
+                    )}
+                    {val?.colors && val.colors.length > 0 && (
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                            Colors: {val.colors.join(', ')}
+                        </p>
+                    )}
                     <p className="text-[10px] text-slate-500 mt-0.5">SKU: {val?.sku}</p>
                 </div>
             )
@@ -157,9 +167,17 @@ const Inventory = () => {
                 <div className="p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-800/80 rounded-2xl flex items-start gap-3">
                     <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
                     <div>
-                        <h4 className="text-sm font-bold text-rose-850 dark:text-rose-400">Critical Stock Warning</h4>
+                        <h4 className="text-sm font-bold text-rose-850 dark:text-rose-455">Critical Stock Warning</h4>
                         <p className="text-xs text-rose-700 dark:text-rose-455 mt-0.5">
-                            The following products are running low or out of stock: {lowStockList.map(p => `${p.name} (${p.quantity} Left)`).join(', ')}. Please coordinate restocks.
+                            The following products are running low or out of stock: {lowStockList.map(p => {
+                                const sizeStr = p.size_stock && Object.keys(p.size_stock).length > 0
+                                    ? ` - Sizes: ${Object.entries(p.size_stock).map(([sz, q]) => `${sz}: ${q}`).join(', ')}`
+                                    : '';
+                                const colorStr = p.colors && p.colors.length > 0
+                                    ? ` - Colors: ${p.colors.join(', ')}`
+                                    : '';
+                                return `${p.name} (${p.quantity} Left${sizeStr}${colorStr})`;
+                            }).join(', ')}. Please coordinate restocks.
                         </p>
                     </div>
                 </div>
@@ -210,11 +228,19 @@ const Inventory = () => {
                             className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-950 rounded-xl text-sm focus:outline-none"
                         >
                             <option value="">-- Choose Product --</option>
-                            {products.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.name} (SKU: {p.sku} | Qty: {p.quantity})
-                                </option>
-                            ))}
+                            {products.map(p => {
+                                const sizeStr = p.size_stock && Object.keys(p.size_stock).length > 0
+                                    ? ` | Sizes: ${Object.entries(p.size_stock).map(([sz, q]) => `${sz}: ${q}`).join(', ')}`
+                                    : '';
+                                const colorStr = p.colors && p.colors.length > 0
+                                    ? ` | Colors: ${p.colors.join(', ')}`
+                                    : '';
+                                return (
+                                    <option key={p.id} value={p.id}>
+                                        {p.name} (SKU: {p.sku} | Qty: {p.quantity}{sizeStr}{colorStr})
+                                    </option>
+                                );
+                            })}
                         </select>
                     </div>
 

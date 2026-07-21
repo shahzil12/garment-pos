@@ -21,9 +21,12 @@ class Product extends Model
         'colors',
         'purchase_price',
         'selling_price',
+        'sale_price',
         'quantity',
         'low_stock_warning',
         'image_path',
+        'size_stock',
+        'color_stock',
     ];
 
     protected $casts = [
@@ -31,8 +34,11 @@ class Product extends Model
         'colors' => 'array',
         'purchase_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
+        'sale_price' => 'decimal:2',
         'quantity' => 'integer',
         'low_stock_warning' => 'integer',
+        'size_stock' => 'array',
+        'color_stock' => 'array',
     ];
 
     protected static function boot()

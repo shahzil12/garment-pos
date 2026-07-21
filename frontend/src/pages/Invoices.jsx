@@ -19,6 +19,7 @@ const Invoices = () => {
 
     const [selectedInvoice, setSelectedInvoice] = useState(null);
     const [printType, setPrintType] = useState('thermal'); // 'thermal' or 'a4'
+    const [modalTab, setModalTab] = useState('invoice');
 
     const fetchInvoices = async (page = 1) => {
         setLoading(true);
@@ -52,6 +53,7 @@ const Invoices = () => {
             const response = await axios.get(`/pos/invoices/${id}`);
             if (response.data.status === 'success') {
                 setSelectedInvoice(response.data.data);
+                setModalTab('invoice');
             }
         } catch (err) {
             alert('Failed to load invoice details.');
@@ -228,7 +230,10 @@ const Invoices = () => {
             {/* Modal: View Invoice Details & Printable View */}
             <Modal
                 isOpen={selectedInvoice !== null}
-                onClose={() => setSelectedInvoice(null)}
+                onClose={() => {
+                    setSelectedInvoice(null);
+                    setModalTab('invoice');
+                }}
                 title={selectedInvoice ? `Invoice details: ${selectedInvoice.invoice_number}` : ''}
                 size="lg"
             >
@@ -265,7 +270,7 @@ const Invoices = () => {
                             </div>
                         </div>
 
-                        {/* Printable Area Wrapper */}
+                        {/* Invoice preview box */}
                         <div className="bg-slate-50 dark:bg-slate-950 p-4 border border-slate-200 dark:border-slate-800 rounded-2xl flex justify-center overflow-auto max-h-96">
                             {printType === 'thermal' ? (
                                 /* Thermal Receipt Layout (80mm width standard) */
@@ -278,7 +283,7 @@ const Invoices = () => {
                                     <div className="py-2 space-y-0.5 border-b border-dashed border-black text-[10px]">
                                         <p><strong>INVOICE:</strong> {selectedInvoice.invoice_number}</p>
                                         <p><strong>DATE:</strong> {new Date(selectedInvoice.sale_date).toLocaleString()}</p>
-                                        <p><strong>CASHIER:</strong> {selectedInvoice.user?.name}</p>
+                                        <p><strong>CASHIER:</strong> {selectedInvoice.user?.name || 'N/A'}</p>
                                         <p><strong>CUSTOMER:</strong> {selectedInvoice.customer?.name || 'Walk-In Customer'}</p>
                                     </div>
                                     <table className="w-full text-[10px] my-2">
@@ -290,25 +295,30 @@ const Invoices = () => {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {selectedInvoice.items?.map((item) => (
-                                                <tr key={item.id}>
-                                                    <td className="py-1">
-                                                        {item.product?.name}
-                                                        <span className="block text-[8px] text-slate-555">
-                                                            {item.size || '-'}/{item.color || '-'} • @ {formatCurrency(item.unit_price)}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-1 text-center">{item.quantity}</td>
-                                                    <td className="py-1 text-right">{formatCurrency(item.subtotal)}</td>
-                                                </tr>
-                                            ))}
+                                            {selectedInvoice.items?.map((item) => {
+                                                const originalPrice = parseFloat(item.original_price);
+                                                const unitPrice = parseFloat(item.unit_price);
+                                                const hasDiscount = !isNaN(originalPrice) && originalPrice > unitPrice;
+                                                return (
+                                                    <tr key={item.id}>
+                                                        <td className="py-1">
+                                                            {item.product?.name}
+                                                            <span className="block text-[8px] text-slate-555">
+                                                                {item.size || '-'}/{item.color || '-'} • @ {hasDiscount && <span className="line-through mr-1 text-slate-400">{formatCurrency(originalPrice)}</span>}{formatCurrency(unitPrice)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="py-1 text-center">{item.quantity}</td>
+                                                        <td className="py-1 text-right">{formatCurrency(item.subtotal)}</td>
+                                                    </tr>
+                                                );
+                                            })}
                                         </tbody>
                                     </table>
                                     <div className="border-t border-dashed border-black pt-2 space-y-1 text-right text-[10px]">
                                         <p>Subtotal: {formatCurrency(parseFloat(selectedInvoice.payable_amount) - parseFloat(selectedInvoice.tax_amount) + parseFloat(selectedInvoice.discount_amount))}</p>
                                         <p>Discount: -{formatCurrency(selectedInvoice.discount_amount)}</p>
                                         <p>Tax: {formatCurrency(selectedInvoice.tax_amount)}</p>
-                                        <p className="text-xs font-bold font-extrabold">Total: {formatCurrency(selectedInvoice.payable_amount)}</p>
+                                        <p className="text-xs font-bold">Total: {formatCurrency(selectedInvoice.payable_amount)}</p>
                                     </div>
                                     <div className="text-center pt-4 border-t border-dashed border-black text-[9px] mt-3">
                                         <p>{settings.receipt_footer || 'Thank you for shopping!'}</p>
@@ -322,12 +332,12 @@ const Invoices = () => {
                                             <div>
                                                 <h2 className="text-lg font-bold uppercase tracking-wider">{settings.shop_name}</h2>
                                                 <p className="text-slate-500 mt-1">{settings.shop_address}</p>
-                                                <p className="text-slate-500">Phone: {settings.shop_phone} | Email: {settings.shop_email}</p>
+                                                <p className="text-slate-550">Phone: {settings.shop_phone} | Email: {settings.shop_email}</p>
                                             </div>
                                             <div className="text-right">
                                                 <h3 className="text-xl font-extrabold text-slate-400">INVOICE</h3>
                                                 <p className="font-semibold mt-1">Ref: {selectedInvoice.invoice_number}</p>
-                                                <p className="text-slate-500">Date: {new Date(selectedInvoice.sale_date).toLocaleDateString()}</p>
+                                                <p className="text-slate-550">Date: {new Date(selectedInvoice.sale_date).toLocaleDateString()}</p>
                                             </div>
                                         </div>
 
@@ -346,7 +356,7 @@ const Invoices = () => {
                                             <div className="text-right">
                                                 <h4 className="font-bold text-slate-400 uppercase tracking-wider text-[10px] mb-1">Payment Method:</h4>
                                                 <p className="font-bold capitalize">{selectedInvoice.payment_method?.replace('_', ' ')}</p>
-                                                <p className="text-slate-500 mt-1">Status: {selectedInvoice.status}</p>
+                                                <p className="text-slate-550 mt-1">Status: Paid In Full</p>
                                             </div>
                                         </div>
 
@@ -361,18 +371,26 @@ const Invoices = () => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y border-b">
-                                                {selectedInvoice.items?.map((item) => (
-                                                    <tr key={item.id}>
-                                                        <td className="p-2">
-                                                            <span className="font-bold">{item.product?.name}</span>
-                                                            <span className="block text-[10px] text-slate-500 mt-0.5">Size: {item.size || 'N/A'} | Color: {item.color || 'N/A'}</span>
-                                                        </td>
-                                                        <td className="p-2 text-center text-slate-500">{item.product?.sku}</td>
-                                                        <td className="p-2 text-center">{item.quantity}</td>
-                                                        <td className="p-2 text-right">{formatCurrency(item.unit_price)}</td>
-                                                        <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
-                                                    </tr>
-                                                ))}
+                                                {selectedInvoice.items?.map((item) => {
+                                                    const originalPrice = parseFloat(item.original_price);
+                                                    const unitPrice = parseFloat(item.unit_price);
+                                                    const hasDiscount = !isNaN(originalPrice) && originalPrice > unitPrice;
+                                                    return (
+                                                        <tr key={item.id}>
+                                                            <td className="p-2">
+                                                                <span className="font-bold">{item.product?.name}</span>
+                                                                <span className="block text-[10px] text-slate-555 mt-0.5">Size: {item.size || 'N/A'} | Color: {item.color || 'N/A'}</span>
+                                                            </td>
+                                                            <td className="p-2 text-center text-slate-500">{item.product?.sku}</td>
+                                                            <td className="p-2 text-center">{item.quantity}</td>
+                                                            <td className="p-2 text-right">
+                                                                {hasDiscount && <span className="line-through text-xs text-slate-400 mr-2">{formatCurrency(originalPrice)}</span>}
+                                                                {formatCurrency(unitPrice)}
+                                                            </td>
+                                                            <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
@@ -383,15 +401,15 @@ const Invoices = () => {
                                         </div>
                                         <div className="w-1/3 space-y-1.5 text-right font-medium">
                                             <div className="flex justify-between">
-                                                <span className="text-slate-500">Subtotal:</span>
+                                                <span className="text-slate-555">Subtotal:</span>
                                                 <span>{formatCurrency(parseFloat(selectedInvoice.payable_amount) - parseFloat(selectedInvoice.tax_amount) + parseFloat(selectedInvoice.discount_amount))}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-slate-500">Discount:</span>
+                                                <span className="text-slate-555">Discount:</span>
                                                 <span className="text-red-500">-{formatCurrency(selectedInvoice.discount_amount)}</span>
                                             </div>
                                             <div className="flex justify-between">
-                                                <span className="text-slate-500">GST/Tax:</span>
+                                                <span className="text-slate-555">GST/Tax:</span>
                                                 <span>{formatCurrency(selectedInvoice.tax_amount)}</span>
                                             </div>
                                             <div className="flex justify-between text-sm font-bold border-t pt-1.5">
@@ -404,9 +422,9 @@ const Invoices = () => {
                             )}
                         </div>
 
-                        {/* Action buttons */}
+                        {/* Modal Action Buttons */}
                         <div className="flex justify-end gap-3 pt-3 border-t dark:border-slate-800">
-                            {selectedInvoice.status === 'completed' && (
+                            {selectedInvoice.status !== 'refunded' && user?.role !== 'cashier' && (
                                 <button
                                     onClick={() => handleRefund(selectedInvoice.id)}
                                     className="px-4 py-2.5 bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/20 dark:text-rose-400 border dark:border-rose-900 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
