@@ -12,28 +12,52 @@ import {
     Package,
     Truck,
     UserCheck,
-    Percent
+    Percent,
+    Award,
+    ArrowUpDown,
+    ShoppingBag,
+    AlertCircle
 } from 'lucide-react';
 
 const Reports = () => {
     const { formatCurrency } = useSettings();
-    const [activeTab, setActiveTab] = useState('pnl');
+    const [activeTab, setActiveTab] = useState('analytics');
 
-    // Date range states (default to last 30 days)
+    // Date range states (default to today / single date or range)
     const [dateFrom, setDateFrom] = useState(() => {
-        const d = new Date();
-        d.setDate(d.getDate() - 30);
-        return d.toISOString().split('T')[0];
+        return new Date().toISOString().split('T')[0];
     });
     const [dateTo, setDateTo] = useState(() => new Date().toISOString().split('T')[0]);
 
     // Data sets
+    const [analyticsData, setAnalyticsData] = useState({
+        summary: { total_items_sold: 0, total_revenue: 0, top_performer: null, lowest_performer: null },
+        items: []
+    });
     const [pnlData, setPnlData] = useState(null);
     const [salesReport, setSalesReport] = useState({ summary: {}, sales: [] });
     const [inventoryReport, setInventoryReport] = useState({ summary: {}, products: [] });
     const [vendorReport, setVendorReport] = useState([]);
     const [cashierReport, setCashierReport] = useState([]);
     const [loading, setLoading] = useState(false);
+
+    // Sorting state for Analytics Report
+    const [analyticsSortBy, setAnalyticsSortBy] = useState('total_qty_sold'); // 'total_qty_sold' or 'total_revenue'
+    const [analyticsSortOrder, setAnalyticsSortOrder] = useState('desc');
+
+    const fetchAnalyticsReport = async () => {
+        setLoading(true);
+        try {
+            const res = await axios.get(`/reports/analytics?date_from=${dateFrom}&date_to=${dateTo}`);
+            if (res.data.status === 'success') {
+                setAnalyticsData(res.data.data);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchPnLAndSales = async () => {
         setLoading(true);
@@ -89,7 +113,9 @@ const Reports = () => {
 
     // Refetch data when tab or date changes
     useEffect(() => {
-        if (activeTab === 'pnl') {
+        if (activeTab === 'analytics') {
+            fetchAnalyticsReport();
+        } else if (activeTab === 'pnl') {
             fetchPnLAndSales();
         } else if (activeTab === 'inventory') {
             fetchInventoryReport();
@@ -99,6 +125,25 @@ const Reports = () => {
             fetchCashierReport();
         }
     }, [activeTab, dateFrom, dateTo]);
+
+    // Sorting logic for Analytics items
+    const getSortedAnalyticsItems = () => {
+        const items = [...(analyticsData.items || [])];
+        return items.sort((a, b) => {
+            const valA = parseFloat(a[analyticsSortBy]) || 0;
+            const valB = parseFloat(b[analyticsSortBy]) || 0;
+            return analyticsSortOrder === 'desc' ? valB - valA : valA - valB;
+        });
+    };
+
+    const toggleSort = (field) => {
+        if (analyticsSortBy === field) {
+            setAnalyticsSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+        } else {
+            setAnalyticsSortBy(field);
+            setAnalyticsSortOrder('desc');
+        }
+    };
 
     const getSoldProductsData = () => {
         const productMap = {};
@@ -137,6 +182,56 @@ const Reports = () => {
     };
 
     // Columns config
+    const analyticsColumns = [
+        {
+            header: 'Item ID / SKU',
+            accessor: 'sku',
+            render: (val) => <span className="font-mono text-xs font-bold text-slate-700 dark:text-slate-300">{val || 'N/A'}</span>
+        },
+        {
+            header: 'Item Name',
+            accessor: 'name',
+            render: (val, row) => (
+                <div>
+                    <span className="font-bold text-slate-800 dark:text-white">{val}</span>
+                </div>
+            )
+        },
+        {
+            header: 'Category',
+            accessor: 'category',
+            render: (val) => <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[11px] font-semibold text-slate-600 dark:text-slate-300">{val}</span>
+        },
+        {
+            header: 'Unit Price',
+            accessor: 'unit_price',
+            render: (val) => formatCurrency(val)
+        },
+        {
+            header: 'Total Qty Sold',
+            accessor: 'total_qty_sold',
+            render: (val) => <span className="font-bold text-indigo-600 dark:text-indigo-400">{val} Units</span>
+        },
+        {
+            header: 'Total Sales Revenue',
+            accessor: 'total_revenue',
+            render: (val) => <span className="font-extrabold text-emerald-600 dark:text-emerald-400">{formatCurrency(val)}</span>
+        },
+        {
+            header: 'Current Stock Level',
+            accessor: 'current_stock',
+            render: (val) => (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                    val <= 5
+                        ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/20'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                }`}>
+                    {val} in stock
+                </span>
+            )
+        }
+    ];
+
     const salesColumns = [
         { header: 'Invoice', accessor: 'invoice_number', render: (val) => <span className="font-bold">{val}</span> },
         { header: 'Customer', accessor: 'customer', render: (val) => val?.name || 'Walk-In' },
@@ -232,36 +327,38 @@ const Reports = () => {
             {/* Headers row with Date Range Selectors */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Reports & Business Analytics</h1>
+                    <h1 className="text-2xl font-bold tracking-tight">Reports & Analytics Dashboard</h1>
                     <p className="text-sm text-slate-500 dark:text-slate-400">
-                        Analyze revenues, cost of goods, net margins, cashier sheets, and inventory worth.
+                        Date-filtered sales performance, peak & lowest items breakdown, revenue analytics, and valuation.
                     </p>
                 </div>
 
-                {/* Date Controls */}
+                {/* Date Selection UI */}
                 {activeTab !== 'inventory' && (
                     <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 py-2.5 rounded-2xl shadow-sm self-start md:self-auto">
                         <Calendar className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <span className="text-xs text-slate-400 font-bold uppercase tracking-wider hidden sm:inline">Filter Date:</span>
                         <input
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            className="bg-transparent border-none outline-none text-xs font-semibold focus:ring-0 w-28"
+                            className="bg-transparent border-none outline-none text-xs font-semibold focus:ring-0 w-28 text-slate-800 dark:text-slate-100"
                         />
                         <span className="text-slate-400 text-xs font-bold">to</span>
                         <input
                             type="date"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            className="bg-transparent border-none outline-none text-xs font-semibold focus:ring-0 w-28"
+                            className="bg-transparent border-none outline-none text-xs font-semibold focus:ring-0 w-28 text-slate-800 dark:text-slate-100"
                         />
                     </div>
                 )}
             </div>
 
             {/* Navigation Tabs */}
-            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6">
+            <div className="flex border-b border-slate-200 dark:border-slate-800 gap-6 overflow-x-auto">
                 {[
+                    { id: 'analytics', label: 'Item Analytics', icon: TrendingUp },
                     { id: 'pnl', label: 'Profit & Loss (P&L)', icon: BarChart3 },
                     { id: 'inventory', label: 'Inventory Valuation', icon: Package },
                     { id: 'vendors', label: 'Supplier Summaries', icon: Truck },
@@ -273,10 +370,10 @@ const Reports = () => {
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex items-center gap-2 pb-3 text-sm font-semibold transition border-b-2 ${
+                            className={`flex items-center gap-2 pb-3 text-sm font-semibold transition border-b-2 whitespace-nowrap ${
                                 isAct
                                     ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 font-bold'
-                                    : 'border-transparent text-slate-550'
+                                    : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                             }`}
                         >
                             <Icon className="w-4.5 h-4.5" />
@@ -286,7 +383,162 @@ const Reports = () => {
                 })}
             </div>
 
-            {/* Displaying Reports */}
+            {/* Displaying Reports: ITEM ANALYTICS TAB */}
+            {activeTab === 'analytics' && (
+                <div className="space-y-6">
+                    {/* Analytics Breakdown Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                        
+                        {/* 1. Total Sales & Revenue */}
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 rounded-2xl shadow-sm relative overflow-hidden">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Sales & Revenue</p>
+                                    <h3 className="text-2xl font-black mt-2 text-indigo-600 dark:text-indigo-400">
+                                        {formatCurrency(analyticsData.summary?.total_revenue || 0)}
+                                    </h3>
+                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-300 mt-1 flex items-center gap-1">
+                                        <ShoppingBag className="w-3.5 h-3.5 text-indigo-500" />
+                                        <span>{analyticsData.summary?.total_items_sold || 0} Total Items Sold</span>
+                                    </p>
+                                </div>
+                                <div className="p-3 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                                    <DollarSign className="w-6 h-6" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 2. Top Performer (Peak Item) */}
+                        <div className="bg-white dark:bg-slate-900 border border-emerald-200 dark:border-emerald-900/50 p-5 rounded-2xl shadow-sm relative overflow-hidden bg-gradient-to-br from-emerald-50/30 to-transparent dark:from-emerald-950/10">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 rounded-md text-[10px] font-extrabold uppercase tracking-wider inline-block">
+                                        Peak Item (Top Performer)
+                                    </span>
+                                    {analyticsData.summary?.top_performer ? (
+                                        <>
+                                            <h4 className="text-base font-extrabold text-slate-800 dark:text-white truncate max-w-[220px]">
+                                                {analyticsData.summary.top_performer.name}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 font-mono">SKU: {analyticsData.summary.top_performer.sku}</p>
+                                            <div className="pt-2 flex items-center gap-3 text-xs">
+                                                <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                                    {analyticsData.summary.top_performer.total_qty_sold} Units Sold
+                                                </span>
+                                                <span className="text-slate-300">•</span>
+                                                <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                    {formatCurrency(analyticsData.summary.top_performer.total_revenue)} Revenue
+                                                </span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <p className="text-xs text-slate-400 italic pt-2">No sales recorded for selected date.</p>
+                                    )}
+                                </div>
+                                <div className="p-3 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-xl">
+                                    <Award className="w-6 h-6" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. Lowest Performer */}
+                        <div className="bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-900/50 p-5 rounded-2xl shadow-sm relative overflow-hidden bg-gradient-to-br from-amber-50/30 to-transparent dark:from-amber-950/10">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 rounded-md text-[10px] font-extrabold uppercase tracking-wider inline-block">
+                                        Lowest Performer
+                                    </span>
+                                    {analyticsData.summary?.lowest_performer ? (
+                                        <>
+                                            <h4 className="text-base font-extrabold text-slate-800 dark:text-white truncate max-w-[220px]">
+                                                {analyticsData.summary.lowest_performer.name}
+                                            </h4>
+                                            <p className="text-xs text-slate-500 font-mono">SKU: {analyticsData.summary.lowest_performer.sku}</p>
+                                            <div className="pt-2 flex items-center gap-3 text-xs">
+                                                <span className="font-bold text-amber-700 dark:text-amber-400">
+                                                    {analyticsData.summary.lowest_performer.total_qty_sold} Units Sold
+                                                </span>
+                                                <span className="text-slate-300">•</span>
+                                                <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                    {formatCurrency(analyticsData.summary.lowest_performer.total_revenue)} Revenue
+                                                </span>
+                                            </div>
+                                        </>
+                                    ) : (
+                                        <p className="text-xs text-slate-400 italic pt-2">No sales recorded for selected date.</p>
+                                    )}
+                                </div>
+                                <div className="p-3 bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400 rounded-xl">
+                                    <TrendingDown className="w-6 h-6" />
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
+                    {/* Detailed Items Table / List */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b dark:border-slate-800 pb-4">
+                            <div>
+                                <h3 className="text-base font-bold text-slate-800 dark:text-white">Detailed Items Sales Report</h3>
+                                <p className="text-xs text-slate-500">Every item sold on {dateFrom === dateTo ? dateFrom : `${dateFrom} to ${dateTo}`} with current stock levels.</p>
+                            </div>
+
+                            {/* Sorting controls */}
+                            <div className="flex items-center gap-2 self-start sm:self-auto">
+                                <span className="text-xs font-bold text-slate-400">Sort By:</span>
+                                <button
+                                    onClick={() => toggleSort('total_qty_sold')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                                        analyticsSortBy === 'total_qty_sold'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    <span>Quantity Sold</span>
+                                    <ArrowUpDown className="w-3 h-3" />
+                                </button>
+                                <button
+                                    onClick={() => toggleSort('total_revenue')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition ${
+                                        analyticsSortBy === 'total_revenue'
+                                            ? 'bg-indigo-600 text-white shadow-sm'
+                                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                                    }`}
+                                >
+                                    <span>Sales Revenue</span>
+                                    <ArrowUpDown className="w-3 h-3" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Table Render & Empty state handling */}
+                        {analyticsData.items && analyticsData.items.length > 0 ? (
+                            <DataTable
+                                columns={analyticsColumns}
+                                data={getSortedAnalyticsItems()}
+                                loading={loading}
+                                csvData={getSortedAnalyticsItems().map(i => [i.sku, i.name, i.category, i.unit_price, i.total_qty_sold, i.total_revenue, i.current_stock])}
+                                csvHeaders={['SKU', 'Item Name', 'Category', 'Unit Price', 'Total Qty Sold', 'Total Sales Revenue', 'Current Stock Level']}
+                                csvFileName={`item_analytics_${dateFrom}_to_${dateTo}.csv`}
+                            />
+                        ) : (
+                            <div className="py-12 text-center space-y-3">
+                                <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 text-slate-400 rounded-full flex items-center justify-center mx-auto">
+                                    <AlertCircle className="w-6 h-6" />
+                                </div>
+                                <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">No Sales Recorded on Selected Date</h4>
+                                <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                                    There were no item transactions found for {dateFrom === dateTo ? dateFrom : `${dateFrom} to ${dateTo}`}. Try selecting a different date range.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+
+                </div>
+            )}
+
+            {/* Displaying Reports: P&L TAB */}
             {activeTab === 'pnl' && (
                 <div className="space-y-6">
                     {/* P&L Summaries Cards */}

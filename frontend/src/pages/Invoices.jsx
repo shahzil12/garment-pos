@@ -5,7 +5,7 @@ import Modal from '../components/Modal';
 import html2canvas from 'html2canvas-pro';
 import { useSettings } from '../context/SettingsContext';
 import { useAuth } from '../context/AuthContext';
-import { FileText, Eye, Printer, RotateCcw, X, AlertTriangle } from 'lucide-react';
+import { FileText, Eye, Printer, RotateCcw, X, AlertTriangle, Edit3, Plus, Trash2, Save, Search } from 'lucide-react';
 
 const Invoices = () => {
     const { formatCurrency, settings } = useSettings();
@@ -76,6 +76,169 @@ const Invoices = () => {
 
     const triggerPrint = () => {
         window.print();
+    };
+
+    // RBAC check for editing invoice line items
+    const canEditInvoice = ['admin', 'manager', 'cashier'].includes(user?.role?.toLowerCase() || '');
+
+    // Line-item editing state
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingInvoice, setEditingInvoice] = useState(null);
+    const [editItems, setEditItems] = useState([]);
+    const [editDiscountAmount, setEditDiscountAmount] = useState(0);
+    const [editTaxAmount, setEditTaxAmount] = useState(0);
+    const [prodSearchQuery, setProdSearchQuery] = useState('');
+    const [prodSearchResults, setProdSearchResults] = useState([]);
+    const [isSearchingProds, setIsSearchingProds] = useState(false);
+    const [isSavingEdit, setIsSavingEdit] = useState(false);
+
+    const openEditModal = async (invoiceId) => {
+        if (!canEditInvoice) {
+            alert('Unauthorized: Only Admins, Managers, and Cashiers can edit invoices.');
+            return;
+        }
+        try {
+            const response = await axios.get(`/pos/invoices/${invoiceId}`);
+            if (response.data.status === 'success') {
+                const inv = response.data.data;
+                setEditingInvoice(inv);
+                setEditDiscountAmount(parseFloat(inv.discount_amount) || 0);
+                setEditTaxAmount(parseFloat(inv.tax_amount) || 0);
+                setEditItems(
+                    (inv.items || []).map(item => ({
+                        product_id: item.product_id,
+                        name: item.product?.name || 'Product',
+                        sku: item.product?.sku || '',
+                        quantity: item.quantity,
+                        unit_price: parseFloat(item.unit_price) || 0,
+                        original_price: parseFloat(item.original_price) || parseFloat(item.unit_price) || 0,
+                        discount: parseFloat(item.discount) / (item.quantity || 1) || 0,
+                        tax: parseFloat(item.tax) || 0,
+                        size: item.size || '',
+                        color: item.color || '',
+                    }))
+                );
+                setIsEditModalOpen(true);
+            }
+        } catch (err) {
+            alert('Failed to load invoice for editing.');
+        }
+    };
+
+    const searchProducts = async (q) => {
+        setProdSearchQuery(q);
+        if (!q.trim()) {
+            setProdSearchResults([]);
+            return;
+        }
+        setIsSearchingProds(true);
+        try {
+            const res = await axios.get(`/pos/search?q=${encodeURIComponent(q)}`);
+            if (res.data.status === 'success') {
+                setProdSearchResults(res.data.data);
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSearchingProds(false);
+        }
+    };
+
+    const addProductToEdit = (prod) => {
+        const existingIdx = editItems.findIndex(i => i.product_id === prod.id);
+        if (existingIdx >= 0) {
+            updateEditItem(existingIdx, 'quantity', editItems[existingIdx].quantity + 1);
+        } else {
+            setEditItems([
+                ...editItems,
+                {
+                    product_id: prod.id,
+                    name: prod.name,
+                    sku: prod.sku,
+                    quantity: 1,
+                    unit_price: parseFloat(prod.price) || 0,
+                    original_price: parseFloat(prod.price) || 0,
+                    discount: 0,
+                    tax: 0,
+                    size: '',
+                    color: '',
+                }
+            ]);
+        }
+        setProdSearchQuery('');
+        setProdSearchResults([]);
+    };
+
+    const updateEditItem = (index, field, value) => {
+        const updated = [...editItems];
+        updated[index] = { ...updated[index], [field]: value };
+        setEditItems(updated);
+    };
+
+    const removeEditItem = (index) => {
+        if (editItems.length <= 1) {
+            alert('An invoice must contain at least one line item.');
+            return;
+        }
+        setEditItems(editItems.filter((_, i) => i !== index));
+    };
+
+    const calculateEditTotals = () => {
+        const itemsSubtotal = editItems.reduce((acc, item) => {
+            const q = parseInt(item.quantity) || 0;
+            const p = parseFloat(item.unit_price) || 0;
+            const d = parseFloat(item.discount) || 0;
+            return acc + Math.max(0, (p - d) * q);
+        }, 0);
+        const disc = parseFloat(editDiscountAmount) || 0;
+        const tax = parseFloat(editTaxAmount) || 0;
+        const payable = Math.max(0, itemsSubtotal - disc + tax);
+        return { itemsSubtotal, disc, tax, payable };
+    };
+
+    const handleSaveInvoiceItems = async () => {
+        if (editItems.length === 0) {
+            alert('Cannot save an empty invoice.');
+            return;
+        }
+
+        setIsSavingEdit(true);
+        try {
+            const payload = {
+                items: editItems.map(item => ({
+                    product_id: item.product_id,
+                    quantity: parseInt(item.quantity) || 1,
+                    unit_price: parseFloat(item.unit_price) || 0,
+                    original_price: parseFloat(item.original_price) || parseFloat(item.unit_price) || 0,
+                    discount: parseFloat(item.discount) || 0,
+                    tax: parseFloat(item.tax) || 0,
+                    size: item.size || null,
+                    color: item.color || null,
+                })),
+                discount_amount: parseFloat(editDiscountAmount) || 0,
+                tax_amount: parseFloat(editTaxAmount) || 0,
+            };
+
+            const response = await axios.put(`/pos/invoices/${editingInvoice.id}/items`, payload);
+            if (response.data.status === 'success') {
+                alert('Invoice line items updated & totals recalculated successfully!');
+                setIsEditModalOpen(false);
+                fetchInvoices(pagination.current_page);
+                
+                try {
+                    const freshRes = await axios.get(`/pos/invoices/${editingInvoice.id}`);
+                    if (freshRes.data.status === 'success') {
+                        setSelectedInvoice(freshRes.data.data);
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to update invoice line items.');
+        } finally {
+            setIsSavingEdit(false);
+        }
     };
 
     const [sharingWhatsApp, setSharingWhatsApp] = useState(false);
@@ -166,6 +329,16 @@ const Invoices = () => {
                         <Eye className="w-3.5 h-3.5" />
                         <span>Inspect</span>
                     </button>
+                    {row.status === 'completed' && canEditInvoice && (
+                        <button
+                            onClick={() => openEditModal(val)}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400 border border-amber-200 dark:border-amber-900 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                            title="Edit Invoice Products & Line Items"
+                        >
+                            <Edit3 className="w-3.5 h-3.5" />
+                            <span>Edit Items</span>
+                        </button>
+                    )}
                     {row.status === 'completed' && (
                         <button
                             onClick={() => handleRefund(val)}
@@ -424,6 +597,15 @@ const Invoices = () => {
 
                         {/* Modal Action Buttons */}
                         <div className="flex justify-end gap-3 pt-3 border-t dark:border-slate-800">
+                            {selectedInvoice.status !== 'refunded' && canEditInvoice && (
+                                <button
+                                    onClick={() => openEditModal(selectedInvoice.id)}
+                                    className="px-4 py-2.5 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:bg-amber-950/20 dark:text-amber-400 border dark:border-amber-900 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition"
+                                >
+                                    <Edit3 className="w-4 h-4" />
+                                    <span>Edit Line Items</span>
+                                </button>
+                            )}
                             {selectedInvoice.status !== 'refunded' && user?.role !== 'cashier' && (
                                 <button
                                     onClick={() => handleRefund(selectedInvoice.id)}
@@ -446,6 +628,226 @@ const Invoices = () => {
                             >
                                 <Printer className="w-4 h-4" />
                                 <span>Print Receipt</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Modal: Edit Invoice Line Items */}
+            <Modal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                title={editingInvoice ? `Edit Line Items — Invoice ${editingInvoice.invoice_number}` : 'Edit Invoice Line Items'}
+                size="xl"
+            >
+                {editingInvoice && (
+                    <div className="space-y-6">
+                        {/* Header Info */}
+                        <div className="p-3.5 bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl text-xs flex justify-between items-center">
+                            <div>
+                                <span className="font-bold text-amber-900 dark:text-amber-300">Customer: </span>
+                                <span className="text-amber-800 dark:text-amber-400">{editingInvoice.customer?.name || 'Walk-In Customer'}</span>
+                                <span className="mx-2 text-amber-400">•</span>
+                                <span className="font-bold text-amber-900 dark:text-amber-300">Payment: </span>
+                                <span className="capitalize text-amber-800 dark:text-amber-400">{editingInvoice.payment_method?.replace('_', ' ')}</span>
+                            </div>
+                            <span className="px-2 py-0.5 bg-amber-200/60 dark:bg-amber-900/50 text-amber-900 dark:text-amber-200 rounded-md font-bold text-[10px] uppercase">
+                                RBAC Authorized ({user?.role})
+                            </span>
+                        </div>
+
+                        {/* Product Search / Add line item */}
+                        <div className="relative">
+                            <label className="block text-xs font-bold mb-1">Add or Swap Products:</label>
+                            <div className="relative">
+                                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by name, SKU or barcode to add items..."
+                                    value={prodSearchQuery}
+                                    onChange={(e) => searchProducts(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-amber-500"
+                                />
+                            </div>
+                            {prodSearchResults.length > 0 && (
+                                <div className="absolute z-50 w-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y dark:divide-slate-800">
+                                    {prodSearchResults.map(prod => (
+                                        <div
+                                            key={prod.id}
+                                            onClick={() => addProductToEdit(prod)}
+                                            className="p-2.5 hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer flex justify-between items-center text-xs"
+                                        >
+                                            <div>
+                                                <p className="font-bold">{prod.name}</p>
+                                                <p className="text-[10px] text-slate-400">SKU: {prod.sku} | Stock: {prod.quantity}</p>
+                                            </div>
+                                            <span className="font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(prod.price)}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Editable Items Table */}
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+                            <table className="w-full text-left text-xs">
+                                <thead className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 font-bold text-slate-500">
+                                    <tr>
+                                        <th className="p-2.5">Product</th>
+                                        <th className="p-2.5 w-24">Size/Color</th>
+                                        <th className="p-2.5 w-24 text-right">Unit Price</th>
+                                        <th className="p-2.5 w-20 text-right">Disc/Unit</th>
+                                        <th className="p-2.5 w-24 text-center">Qty</th>
+                                        <th className="p-2.5 w-24 text-right">Subtotal</th>
+                                        <th className="p-2.5 w-10 text-center"></th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y border-b dark:border-slate-800">
+                                    {editItems.map((item, idx) => {
+                                        const qty = parseInt(item.quantity) || 0;
+                                        const price = parseFloat(item.unit_price) || 0;
+                                        const disc = parseFloat(item.discount) || 0;
+                                        const subtotal = Math.max(0, (price - disc) * qty);
+                                        return (
+                                            <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50">
+                                                <td className="p-2.5">
+                                                    <p className="font-bold">{item.name}</p>
+                                                    <p className="text-[10px] text-slate-400">{item.sku}</p>
+                                                </td>
+                                                <td className="p-2.5">
+                                                    <div className="space-y-1">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="Size"
+                                                            value={item.size}
+                                                            onChange={(e) => updateEditItem(idx, 'size', e.target.value)}
+                                                            className="w-full px-1.5 py-0.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-[11px]"
+                                                        />
+                                                    </div>
+                                                </td>
+                                                <td className="p-2.5 text-right">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={item.unit_price}
+                                                        onChange={(e) => updateEditItem(idx, 'unit_price', e.target.value)}
+                                                        className="w-20 px-1.5 py-0.5 text-right bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-xs font-semibold"
+                                                    />
+                                                </td>
+                                                <td className="p-2.5 text-right">
+                                                    <input
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={item.discount}
+                                                        onChange={(e) => updateEditItem(idx, 'discount', e.target.value)}
+                                                        className="w-16 px-1.5 py-0.5 text-right bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-xs"
+                                                    />
+                                                </td>
+                                                <td className="p-2.5 text-center">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateEditItem(idx, 'quantity', Math.max(1, item.quantity - 1))}
+                                                            className="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center font-bold text-xs hover:bg-slate-200"
+                                                        >
+                                                            -
+                                                        </button>
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            value={item.quantity}
+                                                            onChange={(e) => updateEditItem(idx, 'quantity', Math.max(1, parseInt(e.target.value) || 1))}
+                                                            className="w-10 text-center bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded text-xs font-bold"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => updateEditItem(idx, 'quantity', item.quantity + 1)}
+                                                            className="w-5 h-5 bg-slate-100 dark:bg-slate-800 rounded flex items-center justify-center font-bold text-xs hover:bg-slate-200"
+                                                        >
+                                                            +
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                                <td className="p-2.5 text-right font-bold">
+                                                    {formatCurrency(subtotal)}
+                                                </td>
+                                                <td className="p-2.5 text-center">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removeEditItem(idx)}
+                                                        className="text-slate-400 hover:text-red-600 transition"
+                                                        title="Remove Line Item"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {/* Financial Recalculation Summary */}
+                        {(() => {
+                            const { itemsSubtotal, disc, tax, payable } = calculateEditTotals();
+                            return (
+                                <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 mb-1">Invoice Discount ($):</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={editDiscountAmount}
+                                                onChange={(e) => setEditDiscountAmount(e.target.value)}
+                                                className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-semibold text-slate-500 mb-1">Tax / GST Amount ($):</label>
+                                            <input
+                                                type="number"
+                                                step="0.01"
+                                                value={editTaxAmount}
+                                                onChange={(e) => setEditTaxAmount(e.target.value)}
+                                                className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between items-center text-xs">
+                                        <div className="space-x-4">
+                                            <span>Items Subtotal: <strong className="text-slate-700 dark:text-slate-200">{formatCurrency(itemsSubtotal)}</strong></span>
+                                            <span>Discount: <strong className="text-red-500">-{formatCurrency(disc)}</strong></span>
+                                            <span>Tax: <strong className="text-slate-700 dark:text-slate-200">+{formatCurrency(tax)}</strong></span>
+                                        </div>
+                                        <div className="text-right">
+                                            <span className="text-xs text-slate-400 block uppercase font-bold tracking-wider">Recalculated Grand Total</span>
+                                            <span className="text-lg font-extrabold text-amber-600 dark:text-amber-400">{formatCurrency(payable)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {/* Action buttons */}
+                        <div className="flex justify-end gap-3 pt-3 border-t dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setIsEditModalOpen(false)}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleSaveInvoiceItems}
+                                disabled={isSavingEdit}
+                                className="px-5 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-md flex items-center gap-2 transition"
+                            >
+                                <Save className="w-4 h-4" />
+                                <span>{isSavingEdit ? 'Recalculating & Saving...' : 'Save & Update Line Items'}</span>
                             </button>
                         </div>
                     </div>

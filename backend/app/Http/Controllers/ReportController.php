@@ -218,4 +218,88 @@ class ReportController extends Controller
             'data' => $report
         ]);
     }
+
+    /**
+     * Get Item Analytics Report filtered by date range or specific date.
+     * Computes Total Sales & Revenue, Peak/Top Performer, Lowest Performer, and Detailed Items List.
+     */
+    public function getAnalyticsReport(Request $request)
+    {
+        $request->validate([
+            'date' => 'nullable|date',
+            'date_from' => 'nullable|date',
+            'date_to' => 'nullable|date',
+        ]);
+
+        if ($request->filled('date')) {
+            $from = Carbon::parse($request->date)->startOfDay();
+            $to = Carbon::parse($request->date)->endOfDay();
+        } else {
+            $from = Carbon::parse($request->input('date_from', Carbon::today()))->startOfDay();
+            $to = Carbon::parse($request->input('date_to', Carbon::today()))->endOfDay();
+        }
+
+        // Query item sales aggregated for completed sales in the date range
+        $rawItems = DB::table('sale_items')
+            ->join('sales', 'sale_items.sale_id', '=', 'sales.id')
+            ->join('products', 'sale_items.product_id', '=', 'products.id')
+            ->leftJoin('categories', 'products.category_id', '=', 'categories.id')
+            ->where('sales.status', 'completed')
+            ->whereBetween('sales.sale_date', [$from, $to])
+            ->select(
+                'products.id as product_id',
+                'products.sku',
+                'products.name as product_name',
+                'categories.name as category_name',
+                'products.selling_price as unit_price',
+                'products.quantity as current_stock',
+                DB::raw('SUM(sale_items.quantity) as total_qty_sold'),
+                DB::raw('SUM(sale_items.subtotal) as total_revenue')
+            )
+            ->groupBy('products.id', 'products.sku', 'products.name', 'categories.name', 'products.selling_price', 'products.quantity')
+            ->orderBy('total_revenue', 'desc')
+            ->get();
+
+        $items = $rawItems->map(function ($item) {
+            return [
+                'product_id' => $item->product_id,
+                'sku' => $item->sku ?? 'N/A',
+                'name' => $item->product_name,
+                'category' => $item->category_name ?? 'Uncategorized',
+                'unit_price' => round((float)$item->unit_price, 2),
+                'total_qty_sold' => (int)$item->total_qty_sold,
+                'total_revenue' => round((float)$item->total_revenue, 2),
+                'current_stock' => (int)$item->current_stock,
+            ];
+        });
+
+        $totalItemsSold = $items->sum('total_qty_sold');
+        $totalRevenue = round($items->sum('total_revenue'), 2);
+
+        // Determine Peak (Top) Performer and Lowest Performer
+        $topPerformer = null;
+        $lowestPerformer = null;
+
+        if ($items->count() > 0) {
+            $sortedByQty = $items->sortByDesc('total_qty_sold')->values();
+            $topPerformer = $sortedByQty->first();
+            $lowestPerformer = $sortedByQty->last();
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'date_from' => $from->toDateString(),
+                'date_to' => $to->toDateString(),
+                'summary' => [
+                    'total_items_sold' => $totalItemsSold,
+                    'total_revenue' => $totalRevenue,
+                    'top_performer' => $topPerformer,
+                    'lowest_performer' => $lowestPerformer,
+                ],
+                'items' => $items->values()
+            ]
+        ]);
+    }
 }
+

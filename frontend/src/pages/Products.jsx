@@ -53,7 +53,7 @@ const Products = () => {
     const [prodForm, setProdForm] = useState({
         name: '', sku: '', barcode: '', category_id: '', brand_id: '',
         purchase_price: '', selling_price: '', sale_price: '', quantity: '', low_stock_warning: '',
-        sizes: '', colors: '', size_stock: {}, color_stock: {}, image: null
+        sizes: '', colors: '', size_stock: {}, color_stock: {}, variation_stock: {}, image: null
     });
     const [catForm, setCatForm] = useState({ name: '', description: '' });
     const [brandForm, setBrandForm] = useState({ name: '', description: '' });
@@ -165,6 +165,11 @@ const Products = () => {
             formData.append('color_stock', JSON.stringify(filteredColorStock));
         }
 
+        // Submit variation_stock (Color + Size combinations) as JSON string
+        if (prodForm.variation_stock && Object.keys(prodForm.variation_stock).length > 0) {
+            formData.append('variation_stock', JSON.stringify(prodForm.variation_stock));
+        }
+
         if (prodForm.image) {
             formData.append('image', prodForm.image);
         }
@@ -214,6 +219,7 @@ const Products = () => {
             colors: prod.colors ? prod.colors.join(', ') : '',
             size_stock: prod.size_stock || {},
             color_stock: prod.color_stock || {},
+            variation_stock: prod.variation_stock || {},
             image: null
         });
         setProductModalOpen(true);
@@ -859,6 +865,55 @@ const Products = () => {
                             </div>
                         </div>
                     )}
+
+                    {/* Color + Size Specific Variation Stock Matrix */}
+                    {(() => {
+                        const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
+                        const colorArr = prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
+
+                        if (sizeArr.length > 0 && colorArr.length > 0) {
+                            return (
+                                <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200 dark:border-indigo-900/50 space-y-2">
+                                    <h4 className="text-xs font-extrabold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
+                                        Color + Size Combination Variation Matrix
+                                    </h4>
+                                    <p className="text-[11px] text-indigo-700 dark:text-indigo-400">
+                                        Specify stock quantity independently for each Color & Size combination (e.g. Black - Small = 1 unit).
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
+                                        {colorArr.map(color => (
+                                            sizeArr.map(size => {
+                                                const key = `${color} - ${size}`;
+                                                return (
+                                                    <div key={key} className="p-2 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg">
+                                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">{key}</label>
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            value={prodForm.variation_stock?.[key] ?? ''}
+                                                            onChange={(e) => {
+                                                                const val = parseInt(e.target.value) || 0;
+                                                                const newVarStock = { ...prodForm.variation_stock, [key]: val };
+                                                                const totalQty = Object.values(newVarStock).reduce((sum, v) => sum + v, 0);
+                                                                setProdForm({
+                                                                    ...prodForm,
+                                                                    variation_stock: newVarStock,
+                                                                    quantity: totalQty
+                                                                });
+                                                            }}
+                                                            className="w-full px-2.5 py-1 border dark:border-slate-800 dark:bg-slate-955 rounded-lg text-xs font-bold focus:outline-none"
+                                                            placeholder="0"
+                                                        />
+                                                    </div>
+                                                );
+                                            })
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
 
                     <div>
                         <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Product Image</label>

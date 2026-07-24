@@ -193,6 +193,16 @@ class ProductController extends Controller
             $data['color_stock'] = null;
         }
 
+        if ($request->filled('variation_stock')) {
+            $varStock = is_array($request->variation_stock)
+                ? $request->variation_stock
+                : json_decode($request->variation_stock, true);
+            if (is_array($varStock)) {
+                $data['variation_stock'] = $varStock;
+                $data['quantity'] = array_sum($varStock);
+            }
+        }
+
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('products', 'public');
             $data['image_path'] = Storage::url($path);
@@ -268,6 +278,16 @@ class ProductController extends Controller
             }
         } else {
             $data['color_stock'] = null;
+        }
+
+        if ($request->filled('variation_stock')) {
+            $varStock = is_array($request->variation_stock)
+                ? $request->variation_stock
+                : json_decode($request->variation_stock, true);
+            if (is_array($varStock)) {
+                $data['variation_stock'] = $varStock;
+                $data['quantity'] = array_sum($varStock);
+            }
         }
 
         if ($request->hasFile('image')) {

@@ -77,6 +77,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/pos/checkout', [POSController::class, 'checkout']);
     Route::get('/pos/invoices', [POSController::class, 'indexInvoices']);
     Route::get('/pos/invoices/{id}', [POSController::class, 'showInvoice']);
+    Route::put('/pos/invoices/{id}/items', [POSController::class, 'updateInvoiceItems'])->middleware('can.edit.invoice');
     Route::post('/pos/invoices/{id}/refund', [POSController::class, 'refundInvoice']);
 
     // Expenses
@@ -93,6 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Reports
     Route::get('/reports/sales', [ReportController::class, 'getSalesReport']);
     Route::get('/reports/profit-loss', [ReportController::class, 'getProfitLossReport']);
+    Route::get('/reports/analytics', [ReportController::class, 'getAnalyticsReport']);
     Route::get('/reports/expenses', [ReportController::class, 'getExpenseReport']);
     Route::get('/reports/inventory', [ReportController::class, 'getInventoryReport']);
     Route::get('/reports/vendors', [ReportController::class, 'getVendorReport']);

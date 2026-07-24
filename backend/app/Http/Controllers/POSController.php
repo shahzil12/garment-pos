@@ -269,4 +269,175 @@ class POSController extends Controller
             'data' => $sale->fresh(['customer', 'user', 'items.product'])
         ]);
     }
+
+    /**
+     * Update invoice line items for authorized roles (Admin, Manager, Cashier)
+     * Preserves invoice header metadata while updating line items, stock, and totals.
+     */
+    public function updateInvoiceItems(Request $request, $id)
+    {
+        // 1. RBAC check (Admin, Manager, Cashier allowed; Customers denied)
+        $userRole = strtolower($request->user()->role ?? '');
+        if (!in_array($userRole, ['admin', 'manager', 'cashier'], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized access. Only Admins, Managers, and Cashiers are permitted to edit invoices.'
+            ], 403);
+        }
+
+        // 2. Validate input parameters
+        $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*.product_id' => 'required|exists:products,id',
+            'items.*.quantity' => 'required|integer|min:1',
+            'items.*.unit_price' => 'required|numeric|min:0',
+            'items.*.original_price' => 'nullable|numeric|min:0',
+            'items.*.discount' => 'nullable|numeric|min:0',
+            'items.*.tax' => 'nullable|numeric|min:0',
+            'items.*.size' => 'nullable|string',
+            'items.*.color' => 'nullable|string',
+            'discount_amount' => 'nullable|numeric|min:0',
+            'tax_amount' => 'nullable|numeric|min:0',
+        ]);
+
+        $sale = Sale::with('items.product')->findOrFail($id);
+
+        if ($sale->status === 'refunded') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Voided or refunded invoices cannot be modified.'
+            ], 422);
+        }
+
+        try {
+            $updatedSale = DB::transaction(function() use ($sale, $request) {
+                // STEP 1: Restore inventory stock for previous line items
+                foreach ($sale->items as $oldItem) {
+                    $product = Product::find($oldItem->product_id);
+                    if ($product) {
+                        $size = $oldItem->size;
+                        if ($product->size_stock && $size && isset($product->size_stock[$size])) {
+                            $sizeStock = $product->size_stock;
+                            $sizeStock[$size] += $oldItem->quantity;
+                            $product->size_stock = $sizeStock;
+                            $product->save();
+                        }
+                        $product->increment('quantity', $oldItem->quantity);
+
+                        InventoryAdjustment::create([
+                            'product_id' => $product->id,
+                            'user_id' => $request->user()->id,
+                            'type' => 'in',
+                            'quantity' => $oldItem->quantity,
+                            'reason' => "Stock restored for invoice line-item modification (Invoice: {$sale->invoice_number})",
+                        ]);
+                    }
+                }
+
+                // STEP 2: Validate stock availability for updated line items
+                foreach ($request->items as $newItem) {
+                    $product = Product::findOrFail($newItem['product_id']);
+                    $size = $newItem['size'] ?? null;
+                    if ($product->size_stock && $size && isset($product->size_stock[$size])) {
+                        if ($product->size_stock[$size] < $newItem['quantity']) {
+                            throw new \Exception("Insufficient stock for product '{$product->name}' (Size: {$size}). Current available stock is {$product->size_stock[$size]}.");
+                        }
+                    } else {
+                        if ($product->quantity < $newItem['quantity']) {
+                            throw new \Exception("Insufficient stock for product '{$product->name}'. Current available stock is {$product->quantity}.");
+                        }
+                    }
+                }
+
+                // STEP 3: Clear old items and recreate new line items
+                $sale->items()->delete();
+
+                $newTotalAmount = 0;
+
+                foreach ($request->items as $newItem) {
+                    $product = Product::findOrFail($newItem['product_id']);
+                    $size = $newItem['size'] ?? null;
+                    $quantity = (int)$newItem['quantity'];
+                    $unitPrice = (float)$newItem['unit_price'];
+                    $discountPerUnit = (float)($newItem['discount'] ?? 0);
+                    $taxPerUnit = (float)($newItem['tax'] ?? 0);
+
+                    // Deduct stock
+                    if ($product->size_stock && $size && isset($product->size_stock[$size])) {
+                        $sizeStock = $product->size_stock;
+                        $sizeStock[$size] -= $quantity;
+                        $product->size_stock = $sizeStock;
+                        $product->save();
+                    }
+                    $product->decrement('quantity', $quantity);
+
+                    $subtotal = ($unitPrice - $discountPerUnit) * $quantity + $taxPerUnit;
+                    $newTotalAmount += $subtotal;
+
+                    SaleItem::create([
+                        'sale_id' => $sale->id,
+                        'product_id' => $product->id,
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'discount' => $discountPerUnit * $quantity,
+                        'tax' => $taxPerUnit,
+                        'subtotal' => $subtotal,
+                        'size' => $size,
+                        'color' => $newItem['color'] ?? null,
+                        'original_price' => $newItem['original_price'] ?? $product->selling_price,
+                    ]);
+
+                    InventoryAdjustment::create([
+                        'product_id' => $product->id,
+                        'user_id' => $request->user()->id,
+                        'type' => 'out',
+                        'quantity' => $quantity,
+                        'reason' => "Stock deducted for invoice line-item modification (Invoice: {$sale->invoice_number})",
+                    ]);
+                }
+
+                // STEP 4: Recalculate Subtotal, Tax, Discount & Grand Total on Sale Header
+                $discountAmount = $request->has('discount_amount')
+                    ? (float)$request->discount_amount
+                    : (float)$sale->discount_amount;
+
+                $taxAmount = $request->has('tax_amount')
+                    ? (float)$request->tax_amount
+                    : (float)$sale->tax_amount;
+
+                $payableAmount = max(0, $newTotalAmount - $discountAmount + $taxAmount);
+
+                $sale->update([
+                    'total_amount' => $newTotalAmount,
+                    'discount_amount' => $discountAmount,
+                    'tax_amount' => $taxAmount,
+                    'payable_amount' => $payableAmount,
+                    'paid_amount' => $payableAmount,
+                ]);
+
+                // STEP 5: Audit Log
+                AuditLog::create([
+                    'user_id' => $request->user()->id,
+                    'action' => 'Invoice Line Items Updated',
+                    'description' => "Updated line items for Invoice {$sale->invoice_number}. New Payable Total: {$payableAmount}",
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+
+                return $sale->fresh(['customer', 'user', 'items.product.category', 'items.product.brand']);
+            });
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Invoice line items updated and totals recalculated successfully',
+                'data' => $updatedSale
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 422);
+        }
+    }
 }
+

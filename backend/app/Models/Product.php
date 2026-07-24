@@ -27,6 +27,7 @@ class Product extends Model
         'image_path',
         'size_stock',
         'color_stock',
+        'variation_stock',
     ];
 
     protected $casts = [
@@ -39,6 +40,7 @@ class Product extends Model
         'low_stock_warning' => 'integer',
         'size_stock' => 'array',
         'color_stock' => 'array',
+        'variation_stock' => 'array',
     ];
 
     protected static function boot()
