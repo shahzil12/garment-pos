@@ -352,7 +352,7 @@ class POSController extends Controller
                 // STEP 3: Clear old items and recreate new line items
                 $sale->items()->delete();
 
-                $newTotalAmount = 0;
+                $grossTotalAmount = 0;
 
                 foreach ($request->items as $newItem) {
                     $product = Product::findOrFail($newItem['product_id']);
@@ -372,7 +372,7 @@ class POSController extends Controller
                     $product->decrement('quantity', $quantity);
 
                     $subtotal = ($unitPrice - $discountPerUnit) * $quantity + $taxPerUnit;
-                    $newTotalAmount += $subtotal;
+                    $grossTotalAmount += ($unitPrice * $quantity);
 
                     SaleItem::create([
                         'sale_id' => $sale->id,
@@ -405,10 +405,10 @@ class POSController extends Controller
                     ? (float)$request->tax_amount
                     : (float)$sale->tax_amount;
 
-                $payableAmount = max(0, $newTotalAmount - $discountAmount + $taxAmount);
+                $payableAmount = max(0, $grossTotalAmount - $discountAmount + $taxAmount);
 
                 $sale->update([
-                    'total_amount' => $newTotalAmount,
+                    'total_amount' => $grossTotalAmount,
                     'discount_amount' => $discountAmount,
                     'tax_amount' => $taxAmount,
                     'payable_amount' => $payableAmount,

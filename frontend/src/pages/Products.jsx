@@ -135,39 +135,59 @@ const Products = () => {
         formData.append('sale_price', prodForm.sale_price !== null && prodForm.sale_price !== undefined ? prodForm.sale_price : '');
         const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
         const colorArr = prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
-        let calculatedQuantity = prodForm.quantity;
-        if (sizeArr.length > 0) {
-            calculatedQuantity = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
+
+        let variationKeys = [];
+        if (sizeArr.length > 0 && colorArr.length > 0) {
+            colorArr.forEach(c => sizeArr.forEach(s => variationKeys.push(`${c} - ${s}`)));
+        } else if (sizeArr.length > 0) {
+            variationKeys = sizeArr;
         } else if (colorArr.length > 0) {
-            calculatedQuantity = colorArr.reduce((sum, c) => sum + (parseInt(prodForm.color_stock?.[c]) || 0), 0);
+            variationKeys = colorArr;
         }
+
+        const derivedSizeStock = {};
+        const derivedColorStock = {};
+        const filteredVarStock = {};
+        let calculatedQuantity = 0;
+
+        if (variationKeys.length > 0) {
+            variationKeys.forEach(k => {
+                const qty = parseInt(prodForm.variation_stock?.[k]) || 0;
+                filteredVarStock[k] = qty;
+                calculatedQuantity += qty;
+
+                if (sizeArr.length > 0 && colorArr.length > 0) {
+                    const parts = k.split(' - ');
+                    const c = parts[0]?.trim();
+                    const s = parts[1]?.trim();
+                    if (c && s) {
+                        derivedColorStock[c] = (derivedColorStock[c] || 0) + qty;
+                        derivedSizeStock[s] = (derivedSizeStock[s] || 0) + qty;
+                    }
+                } else if (sizeArr.length > 0) {
+                    derivedSizeStock[k] = qty;
+                } else if (colorArr.length > 0) {
+                    derivedColorStock[k] = qty;
+                }
+            });
+        } else {
+            calculatedQuantity = parseInt(prodForm.quantity) || 0;
+        }
+
         formData.append('quantity', calculatedQuantity);
         formData.append('low_stock_warning', prodForm.low_stock_warning);
         
         sizeArr.forEach((s, i) => formData.append(`sizes[${i}]`, s));
         colorArr.forEach((c, i) => formData.append(`colors[${i}]`, c));
 
-        // Submit size_stock as JSON string
-        if (sizeArr.length > 0 && prodForm.size_stock) {
-            const filteredSizeStock = {};
-            sizeArr.forEach(s => {
-                filteredSizeStock[s] = parseInt(prodForm.size_stock[s]) || 0;
-            });
-            formData.append('size_stock', JSON.stringify(filteredSizeStock));
+        if (Object.keys(derivedSizeStock).length > 0) {
+            formData.append('size_stock', JSON.stringify(derivedSizeStock));
         }
-
-        // Submit color_stock as JSON string
-        if (colorArr.length > 0 && prodForm.color_stock) {
-            const filteredColorStock = {};
-            colorArr.forEach(c => {
-                filteredColorStock[c] = parseInt(prodForm.color_stock[c]) || 0;
-            });
-            formData.append('color_stock', JSON.stringify(filteredColorStock));
+        if (Object.keys(derivedColorStock).length > 0) {
+            formData.append('color_stock', JSON.stringify(derivedColorStock));
         }
-
-        // Submit variation_stock (Color + Size combinations) as JSON string
-        if (prodForm.variation_stock && Object.keys(prodForm.variation_stock).length > 0) {
-            formData.append('variation_stock', JSON.stringify(prodForm.variation_stock));
+        if (Object.keys(filteredVarStock).length > 0) {
+            formData.append('variation_stock', JSON.stringify(filteredVarStock));
         }
 
         if (prodForm.image) {
@@ -762,12 +782,23 @@ const Products = () => {
                                     const newSizes = e.target.value;
                                     const sizeArr = newSizes ? newSizes.split(',').map(s => s.trim()).filter(Boolean) : [];
                                     const colorArr = prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
-                                    let totalQty = prodForm.quantity;
-                                    if (sizeArr.length > 0) {
-                                        totalQty = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
+                                    
+                                    let keys = [];
+                                    if (sizeArr.length > 0 && colorArr.length > 0) {
+                                        colorArr.forEach(c => sizeArr.forEach(s => keys.push(`${c} - ${s}`)));
+                                    } else if (sizeArr.length > 0) {
+                                        keys = sizeArr;
                                     } else if (colorArr.length > 0) {
-                                        totalQty = colorArr.reduce((sum, c) => sum + (parseInt(prodForm.color_stock?.[c]) || 0), 0);
+                                        keys = colorArr;
                                     }
+
+                                    let totalQty = 0;
+                                    if (keys.length > 0) {
+                                        totalQty = keys.reduce((sum, k) => sum + (parseInt(prodForm.variation_stock?.[k]) || 0), 0);
+                                    } else {
+                                        totalQty = prodForm.quantity;
+                                    }
+
                                     setProdForm({ ...prodForm, sizes: newSizes, quantity: totalQty });
                                 }}
                                 className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
@@ -783,12 +814,23 @@ const Products = () => {
                                     const newColors = e.target.value;
                                     const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
                                     const colorArr = newColors ? newColors.split(',').map(c => c.trim()).filter(Boolean) : [];
-                                    let totalQty = prodForm.quantity;
-                                    if (sizeArr.length > 0) {
-                                        totalQty = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
+                                    
+                                    let keys = [];
+                                    if (sizeArr.length > 0 && colorArr.length > 0) {
+                                        colorArr.forEach(c => sizeArr.forEach(s => keys.push(`${c} - ${s}`)));
+                                    } else if (sizeArr.length > 0) {
+                                        keys = sizeArr;
                                     } else if (colorArr.length > 0) {
-                                        totalQty = colorArr.reduce((sum, c) => sum + (parseInt(prodForm.color_stock?.[c]) || 0), 0);
+                                        keys = colorArr;
                                     }
+
+                                    let totalQty = 0;
+                                    if (keys.length > 0) {
+                                        totalQty = keys.reduce((sum, k) => sum + (parseInt(prodForm.variation_stock?.[k]) || 0), 0);
+                                    } else {
+                                        totalQty = prodForm.quantity;
+                                    }
+
                                     setProdForm({ ...prodForm, colors: newColors, quantity: totalQty });
                                 }}
                                 className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
@@ -797,116 +839,62 @@ const Products = () => {
                         </div>
                     </div>
 
-                    {/* Size-wise stock quantities */}
-                    {prodForm.sizes && prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean).length > 0 && (
-                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border dark:border-slate-800">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Stock per Size</h4>
-                            <div className="grid grid-cols-4 gap-3">
-                                {prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean).map(size => (
-                                    <div key={size}>
-                                        <label className="block text-[10px] font-bold text-slate-400 mb-1">{size}</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={prodForm.size_stock?.[size] ?? ''}
-                                            onChange={(e) => {
-                                                const val = parseInt(e.target.value) || 0;
-                                                const newStock = { ...prodForm.size_stock, [size]: val };
-                                                const totalQty = Object.values(newStock).reduce((sum, v) => sum + v, 0);
-                                                setProdForm({
-                                                    ...prodForm,
-                                                    size_stock: newStock,
-                                                    quantity: totalQty
-                                                });
-                                            }}
-                                            className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-xs focus:outline-none"
-                                            placeholder="0"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Color-wise stock quantities */}
-                    {prodForm.colors && prodForm.colors.split(',').map(c => c.trim()).filter(Boolean).length > 0 && (
-                        <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border dark:border-slate-800">
-                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Stock per Color</h4>
-                            <div className="grid grid-cols-4 gap-3">
-                                {prodForm.colors.split(',').map(c => c.trim()).filter(Boolean).map(color => (
-                                    <div key={color}>
-                                        <label className="block text-[10px] font-bold text-slate-400 mb-1">{color}</label>
-                                        <input
-                                            type="number"
-                                            min="0"
-                                            value={prodForm.color_stock?.[color] ?? ''}
-                                            onChange={(e) => {
-                                                const val = parseInt(e.target.value) || 0;
-                                                const newStock = { ...prodForm.color_stock, [color]: val };
-                                                
-                                                const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
-                                                let totalQty;
-                                                if (sizeArr.length > 0) {
-                                                    totalQty = sizeArr.reduce((sum, s) => sum + (parseInt(prodForm.size_stock?.[s]) || 0), 0);
-                                                } else {
-                                                    totalQty = Object.values(newStock).reduce((sum, v) => sum + v, 0);
-                                                }
-                                                setProdForm({
-                                                    ...prodForm,
-                                                    color_stock: newStock,
-                                                    quantity: totalQty
-                                                });
-                                            }}
-                                            className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-xs focus:outline-none"
-                                            placeholder="0"
-                                        />
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Color + Size Specific Variation Stock Matrix */}
+                    {/* Color + Size Variation Matrix */}
                     {(() => {
                         const sizeArr = prodForm.sizes ? prodForm.sizes.split(',').map(s => s.trim()).filter(Boolean) : [];
                         const colorArr = prodForm.colors ? prodForm.colors.split(',').map(c => c.trim()).filter(Boolean) : [];
 
+                        let variationKeys = [];
+                        let title = "Color + Size Combination Variation Matrix";
+                        let description = "Specify stock quantity independently for each Color & Size combination (e.g. Black - Small = 1 unit).";
+
                         if (sizeArr.length > 0 && colorArr.length > 0) {
+                            colorArr.forEach(c => {
+                                sizeArr.forEach(s => {
+                                    variationKeys.push(`${c} - ${s}`);
+                                });
+                            });
+                        } else if (sizeArr.length > 0) {
+                            variationKeys = sizeArr;
+                            title = "Size Variation Matrix";
+                            description = "Specify stock quantity independently for each Size.";
+                        } else if (colorArr.length > 0) {
+                            variationKeys = colorArr;
+                            title = "Color Variation Matrix";
+                            description = "Specify stock quantity independently for each Color.";
+                        }
+
+                        if (variationKeys.length > 0) {
                             return (
                                 <div className="p-4 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-200 dark:border-indigo-900/50 space-y-2">
                                     <h4 className="text-xs font-extrabold uppercase tracking-wider text-indigo-900 dark:text-indigo-300">
-                                        Color + Size Combination Variation Matrix
+                                        {title}
                                     </h4>
                                     <p className="text-[11px] text-indigo-700 dark:text-indigo-400">
-                                        Specify stock quantity independently for each Color & Size combination (e.g. Black - Small = 1 unit).
+                                        {description}
                                     </p>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2">
-                                        {colorArr.map(color => (
-                                            sizeArr.map(size => {
-                                                const key = `${color} - ${size}`;
-                                                return (
-                                                    <div key={key} className="p-2 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg">
-                                                        <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">{key}</label>
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            value={prodForm.variation_stock?.[key] ?? ''}
-                                                            onChange={(e) => {
-                                                                const val = parseInt(e.target.value) || 0;
-                                                                const newVarStock = { ...prodForm.variation_stock, [key]: val };
-                                                                const totalQty = Object.values(newVarStock).reduce((sum, v) => sum + v, 0);
-                                                                setProdForm({
-                                                                    ...prodForm,
-                                                                    variation_stock: newVarStock,
-                                                                    quantity: totalQty
-                                                                });
-                                                            }}
-                                                            className="w-full px-2.5 py-1 border dark:border-slate-800 dark:bg-slate-955 rounded-lg text-xs font-bold focus:outline-none"
-                                                            placeholder="0"
-                                                        />
-                                                    </div>
-                                                );
-                                            })
+                                        {variationKeys.map(key => (
+                                            <div key={key} className="p-2 bg-white dark:bg-slate-900 border dark:border-slate-800 rounded-lg">
+                                                <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">{key}</label>
+                                                <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={prodForm.variation_stock?.[key] ?? ''}
+                                                    onChange={(e) => {
+                                                        const val = parseInt(e.target.value) || 0;
+                                                        const newVarStock = { ...prodForm.variation_stock, [key]: val };
+                                                        const totalQty = Object.values(newVarStock).reduce((sum, v) => sum + v, 0);
+                                                        setProdForm({
+                                                            ...prodForm,
+                                                            variation_stock: newVarStock,
+                                                            quantity: totalQty
+                                                        });
+                                                    }}
+                                                    className="w-full px-2.5 py-1 border dark:border-slate-800 dark:bg-slate-955 rounded-lg text-xs font-bold focus:outline-none"
+                                                    placeholder="0"
+                                                />
+                                            </div>
                                         ))}
                                     </div>
                                 </div>

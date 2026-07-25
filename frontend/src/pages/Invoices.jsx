@@ -102,7 +102,6 @@ const Invoices = () => {
             if (response.data.status === 'success') {
                 const inv = response.data.data;
                 setEditingInvoice(inv);
-                setEditDiscountAmount(parseFloat(inv.discount_amount) || 0);
                 setEditTaxAmount(parseFloat(inv.tax_amount) || 0);
                 setEditItems(
                     (inv.items || []).map(item => ({
@@ -190,10 +189,9 @@ const Invoices = () => {
             const d = parseFloat(item.discount) || 0;
             return acc + Math.max(0, (p - d) * q);
         }, 0);
-        const disc = parseFloat(editDiscountAmount) || 0;
         const tax = parseFloat(editTaxAmount) || 0;
-        const payable = Math.max(0, itemsSubtotal - disc + tax);
-        return { itemsSubtotal, disc, tax, payable };
+        const payable = Math.max(0, itemsSubtotal + tax);
+        return { itemsSubtotal, tax, payable };
     };
 
     const handleSaveInvoiceItems = async () => {
@@ -204,6 +202,12 @@ const Invoices = () => {
 
         setIsSavingEdit(true);
         try {
+            const totalItemDiscount = editItems.reduce((sum, item) => {
+                const q = parseInt(item.quantity) || 0;
+                const d = parseFloat(item.discount) || 0;
+                return sum + (d * q);
+            }, 0);
+
             const payload = {
                 items: editItems.map(item => ({
                     product_id: item.product_id,
@@ -215,7 +219,7 @@ const Invoices = () => {
                     size: item.size || null,
                     color: item.color || null,
                 })),
-                discount_amount: parseFloat(editDiscountAmount) || 0,
+                discount_amount: totalItemDiscount,
                 tax_amount: parseFloat(editTaxAmount) || 0,
             };
 
@@ -791,35 +795,22 @@ const Invoices = () => {
 
                         {/* Financial Recalculation Summary */}
                         {(() => {
-                            const { itemsSubtotal, disc, tax, payable } = calculateEditTotals();
+                            const { itemsSubtotal, tax, payable } = calculateEditTotals();
                             return (
                                 <div className="p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl space-y-3">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 mb-1">Invoice Discount ($):</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={editDiscountAmount}
-                                                onChange={(e) => setEditDiscountAmount(e.target.value)}
-                                                className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-semibold text-slate-500 mb-1">Tax / GST Amount ($):</label>
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                value={editTaxAmount}
-                                                onChange={(e) => setEditTaxAmount(e.target.value)}
-                                                className="w-full px-3 py-1.5 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold"
-                                            />
-                                        </div>
+                                    <div>
+                                        <label className="block text-xs font-semibold text-slate-500 mb-1">Tax / GST Amount ($):</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            value={editTaxAmount}
+                                            onChange={(e) => setEditTaxAmount(e.target.value)}
+                                            className="w-full px-3 py-1.5 bg-white dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg text-xs font-semibold"
+                                        />
                                     </div>
                                     <div className="border-t border-slate-200 dark:border-slate-800 pt-2 flex justify-between items-center text-xs">
                                         <div className="space-x-4">
                                             <span>Items Subtotal: <strong className="text-slate-700 dark:text-slate-200">{formatCurrency(itemsSubtotal)}</strong></span>
-                                            <span>Discount: <strong className="text-red-500">-{formatCurrency(disc)}</strong></span>
                                             <span>Tax: <strong className="text-slate-700 dark:text-slate-200">+{formatCurrency(tax)}</strong></span>
                                         </div>
                                         <div className="text-right">
