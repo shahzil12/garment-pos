@@ -10,6 +10,8 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
@@ -106,13 +108,16 @@ class ProductController extends Controller
     {
         $query = Product::with(['category', 'brand']);
 
-        // Search by name, SKU, or Barcode
+        // Search by name, SKU, Barcode, Sizes, or Colors
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
                   ->orWhere('sku', 'like', "%{$search}%")
-                  ->orWhere('barcode', 'like', "%{$search}%");
+                  ->orWhere('barcode', 'like', "%{$search}%")
+                  ->orWhere('sizes', 'like', "%{$search}%")
+                  ->orWhere('colors', 'like', "%{$search}%")
+                  ->orWhere('variation_stock', 'like', "%{$search}%");
             });
         }
 
@@ -146,6 +151,21 @@ class ProductController extends Controller
     public function store(Request $request)
     {
         \Log::info('Store Product request data:', $request->all());
+        if (!$request->filled('barcode')) {
+            do {
+                $randomDigits = str_pad((string)mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
+                $barcodeWithoutCheck = '880' . $randomDigits;
+                $sum = 0;
+                for ($i = 0; $i < 12; $i++) {
+                    $digit = (int)$barcodeWithoutCheck[$i];
+                    $sum += ($i % 2 === 0) ? $digit : $digit * 3;
+                }
+                $checkDigit = (10 - ($sum % 10)) % 10;
+                $generatedBarcode = $barcodeWithoutCheck . $checkDigit;
+            } while (Product::where('barcode', $generatedBarcode)->exists());
+
+            $request->merge(['barcode' => $generatedBarcode]);
+        }
         $request->validate([
             'category_id' => 'nullable|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
@@ -162,45 +182,46 @@ class ProductController extends Controller
             'size_stock' => 'nullable|string',
             'color_stock' => 'nullable|string',
             'image' => 'nullable|image|max:2048', // 2MB Max
+        ], [
+            'sku.unique' => 'The SKU already exists.',
+            'barcode.unique' => 'The Barcode already exists.',
         ]);
 
         $data = $request->except('image');
         $data['slug'] = Str::slug($request->name);
+        $data['barcode'] = $request->filled('barcode') ? $request->barcode : null;
+        $data['category_id'] = $request->filled('category_id') ? $request->category_id : null;
+        $data['brand_id'] = $request->filled('brand_id') ? $request->brand_id : null;
+        $data['sale_price'] = $request->filled('sale_price') ? $request->sale_price : null;
 
-        if ($request->has('sizes') && is_array($request->sizes) && count($request->sizes) > 0) {
-            if ($request->filled('size_stock')) {
-                $sizeStock = json_decode($request->size_stock, true);
-                if (is_array($sizeStock)) {
-                    $data['size_stock'] = $sizeStock;
-                    $data['quantity'] = array_sum($sizeStock);
-                }
+        if ($request->filled('size_stock')) {
+            $sizeStock = is_array($request->size_stock) ? $request->size_stock : json_decode($request->size_stock, true);
+            $data['size_stock'] = is_array($sizeStock) ? $sizeStock : null;
+            if (is_array($sizeStock) && count($sizeStock) > 0) {
+                $data['quantity'] = array_sum($sizeStock);
             }
         } else {
             $data['size_stock'] = null;
         }
 
-        if ($request->has('colors') && is_array($request->colors) && count($request->colors) > 0) {
-            if ($request->filled('color_stock')) {
-                $colorStock = json_decode($request->color_stock, true);
-                if (is_array($colorStock)) {
-                    $data['color_stock'] = $colorStock;
-                    if (!isset($data['size_stock'])) {
-                        $data['quantity'] = array_sum($colorStock);
-                    }
-                }
+        if ($request->filled('color_stock')) {
+            $colorStock = is_array($request->color_stock) ? $request->color_stock : json_decode($request->color_stock, true);
+            $data['color_stock'] = is_array($colorStock) ? $colorStock : null;
+            if (is_array($colorStock) && count($colorStock) > 0 && !isset($data['size_stock'])) {
+                $data['quantity'] = array_sum($colorStock);
             }
         } else {
             $data['color_stock'] = null;
         }
 
         if ($request->filled('variation_stock')) {
-            $varStock = is_array($request->variation_stock)
-                ? $request->variation_stock
-                : json_decode($request->variation_stock, true);
-            if (is_array($varStock)) {
-                $data['variation_stock'] = $varStock;
+            $varStock = is_array($request->variation_stock) ? $request->variation_stock : json_decode($request->variation_stock, true);
+            $data['variation_stock'] = is_array($varStock) ? $varStock : null;
+            if (is_array($varStock) && count($varStock) > 0) {
                 $data['quantity'] = array_sum($varStock);
             }
+        } else {
+            $data['variation_stock'] = null;
         }
 
         if ($request->hasFile('image')) {
@@ -208,18 +229,35 @@ class ProductController extends Controller
             $data['image_path'] = Storage::url($path);
         }
 
-        $product = Product::create($data);
+        try {
+            if (!Schema::hasColumn('products', 'size_stock')) unset($data['size_stock']);
+            if (!Schema::hasColumn('products', 'color_stock')) unset($data['color_stock']);
+            if (!Schema::hasColumn('products', 'variation_stock')) unset($data['variation_stock']);
+            if (!Schema::hasColumn('products', 'sale_price')) unset($data['sale_price']);
 
-        // Audit Trail
-        AuditLog::create([
-            'user_id' => $request->user()->id,
-            'action' => 'Product Created',
-            'description' => "Created product {$product->name} (SKU: {$product->sku})",
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+            $product = Product::create($data);
 
-        return response()->json(['status' => 'success', 'message' => 'Product created', 'data' => $product], 201);
+            // Audit Trail
+            try {
+                AuditLog::create([
+                    'user_id' => $request->user()?->id,
+                    'action' => 'Product Created',
+                    'description' => "Created product {$product->name} (SKU: {$product->sku})",
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) {
+                \Log::warning('AuditLog creation error: ' . $e->getMessage());
+            }
+
+            return response()->json(['status' => 'success', 'message' => 'Product created', 'data' => $product], 201);
+        } catch (\Throwable $e) {
+            \Log::error('Error creating product: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to create product: ' . $e->getMessage()
+            ], 422);
+        }
     }
 
     public function show($id)
@@ -233,12 +271,16 @@ class ProductController extends Controller
         \Log::info('Update Product ID ' . $id . ' request data:', $request->all());
         $product = Product::findOrFail($id);
 
+        if (!$request->filled('barcode')) {
+            $request->merge(['barcode' => null]);
+        }
+
         $request->validate([
             'category_id' => 'nullable|exists:categories,id',
             'brand_id' => 'nullable|exists:brands,id',
             'name' => 'required|string|max:255',
-            'sku' => "required|string|unique:products,sku,{$id}",
-            'barcode' => "nullable|string|unique:products,barcode,{$id}",
+            'sku' => ['required', 'string', Rule::unique('products', 'sku')->ignore($product->id)],
+            'barcode' => ['nullable', 'string', Rule::unique('products', 'barcode')->ignore($product->id)],
             'purchase_price' => 'required|numeric|min:0',
             'selling_price' => 'required|numeric|min:0',
             'sale_price' => 'nullable|numeric|min:0',
@@ -249,45 +291,46 @@ class ProductController extends Controller
             'size_stock' => 'nullable|string',
             'color_stock' => 'nullable|string',
             'image' => 'nullable|image|max:2048', // 2MB Max
+        ], [
+            'sku.unique' => 'The SKU already exists.',
+            'barcode.unique' => 'The Barcode already exists.',
         ]);
 
         $data = $request->except(['image', '_method']);
         $data['slug'] = Str::slug($request->name);
+        $data['barcode'] = $request->filled('barcode') ? $request->barcode : null;
+        $data['category_id'] = $request->filled('category_id') ? $request->category_id : null;
+        $data['brand_id'] = $request->filled('brand_id') ? $request->brand_id : null;
+        $data['sale_price'] = $request->filled('sale_price') ? $request->sale_price : null;
 
-        if ($request->has('sizes') && is_array($request->sizes) && count($request->sizes) > 0) {
-            if ($request->filled('size_stock')) {
-                $sizeStock = json_decode($request->size_stock, true);
-                if (is_array($sizeStock)) {
-                    $data['size_stock'] = $sizeStock;
-                    $data['quantity'] = array_sum($sizeStock);
-                }
+        if ($request->filled('size_stock')) {
+            $sizeStock = is_array($request->size_stock) ? $request->size_stock : json_decode($request->size_stock, true);
+            $data['size_stock'] = is_array($sizeStock) ? $sizeStock : null;
+            if (is_array($sizeStock) && count($sizeStock) > 0) {
+                $data['quantity'] = array_sum($sizeStock);
             }
         } else {
             $data['size_stock'] = null;
         }
 
-        if ($request->has('colors') && is_array($request->colors) && count($request->colors) > 0) {
-            if ($request->filled('color_stock')) {
-                $colorStock = json_decode($request->color_stock, true);
-                if (is_array($colorStock)) {
-                    $data['color_stock'] = $colorStock;
-                    if (!isset($data['size_stock'])) {
-                        $data['quantity'] = array_sum($colorStock);
-                    }
-                }
+        if ($request->filled('color_stock')) {
+            $colorStock = is_array($request->color_stock) ? $request->color_stock : json_decode($request->color_stock, true);
+            $data['color_stock'] = is_array($colorStock) ? $colorStock : null;
+            if (is_array($colorStock) && count($colorStock) > 0 && !isset($data['size_stock'])) {
+                $data['quantity'] = array_sum($colorStock);
             }
         } else {
             $data['color_stock'] = null;
         }
 
         if ($request->filled('variation_stock')) {
-            $varStock = is_array($request->variation_stock)
-                ? $request->variation_stock
-                : json_decode($request->variation_stock, true);
-            if (is_array($varStock)) {
-                $data['variation_stock'] = $varStock;
+            $varStock = is_array($request->variation_stock) ? $request->variation_stock : json_decode($request->variation_stock, true);
+            $data['variation_stock'] = is_array($varStock) ? $varStock : null;
+            if (is_array($varStock) && count($varStock) > 0) {
                 $data['quantity'] = array_sum($varStock);
             }
+        } else {
+            $data['variation_stock'] = null;
         }
 
         if ($request->hasFile('image')) {
@@ -301,18 +344,35 @@ class ProductController extends Controller
             $data['image_path'] = Storage::url($path);
         }
 
-        $product->update($data);
+        try {
+            if (!Schema::hasColumn('products', 'size_stock')) unset($data['size_stock']);
+            if (!Schema::hasColumn('products', 'color_stock')) unset($data['color_stock']);
+            if (!Schema::hasColumn('products', 'variation_stock')) unset($data['variation_stock']);
+            if (!Schema::hasColumn('products', 'sale_price')) unset($data['sale_price']);
 
-        // Audit Trail
-        AuditLog::create([
-            'user_id' => $request->user()->id,
-            'action' => 'Product Updated',
-            'description' => "Updated product {$product->name} (SKU: {$product->sku})",
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+            $product->update($data);
 
-        return response()->json(['status' => 'success', 'message' => 'Product updated', 'data' => $product]);
+            // Audit Trail
+            try {
+                AuditLog::create([
+                    'user_id' => $request->user()?->id,
+                    'action' => 'Product Updated',
+                    'description' => "Updated product {$product->name} (SKU: {$product->sku})",
+                    'ip_address' => $request->ip(),
+                    'user_agent' => $request->userAgent(),
+                ]);
+            } catch (\Throwable $e) {
+                \Log::warning('AuditLog creation error: ' . $e->getMessage());
+            }
+
+            return response()->json(['status' => 'success', 'message' => 'Product updated', 'data' => $product]);
+        } catch (\Throwable $e) {
+            \Log::error('Error updating product: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to update product: ' . $e->getMessage()
+            ], 422);
+        }
     }
 
     public function destroy(Request $request, $id)
@@ -326,13 +386,17 @@ class ProductController extends Controller
         }
 
         // Audit Trail
-        AuditLog::create([
-            'user_id' => $request->user()->id,
-            'action' => 'Product Deleted',
-            'description' => "Deleted product {$product->name} (SKU: {$product->sku})",
-            'ip_address' => $request->ip(),
-            'user_agent' => $request->userAgent(),
-        ]);
+        try {
+            AuditLog::create([
+                'user_id' => $request->user()?->id,
+                'action' => 'Product Deleted',
+                'description' => "Deleted product {$product->name} (SKU: {$product->sku})",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('AuditLog creation error: ' . $e->getMessage());
+        }
 
         $product->delete();
 

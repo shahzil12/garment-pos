@@ -3,8 +3,10 @@ import axios from 'axios';
 
 const AuthContext = createContext();
 
-// Set base API URL
+// Set base API URL and default headers
 axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api';
+axios.defaults.headers.common['Accept'] = 'application/json';
+axios.defaults.headers.common['X-Requested-With'] = 'XMLHttpRequest';
 
 // Initialize token synchronously at top level
 const initialToken = localStorage.getItem('token') || '';
@@ -63,9 +65,12 @@ export const AuthProvider = ({ children }) => {
             setUser(receivedUser);
             return { success: true };
         } catch (error) {
+            const message = error.response 
+                ? (error.response.data?.message || 'Login failed. Please check your credentials.')
+                : 'Unable to connect to the backend server. Please ensure the backend server is running.';
             return {
                 success: false,
-                message: error.response?.data?.message || 'Login failed. Please check your credentials.'
+                message
             };
         }
     };

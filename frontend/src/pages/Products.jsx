@@ -38,15 +38,19 @@ const Products = () => {
     const [selectedProductForBarcode, setSelectedProductForBarcode] = useState(null);
 
     const generateEan13 = () => {
-        const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
-        const barcodeWithoutCheck = '880' + randomDigits;
-        let sum = 0;
-        for (let i = 0; i < 12; i++) {
-            const digit = parseInt(barcodeWithoutCheck[i]);
-            sum += (i % 2 === 0) ? digit : digit * 3;
-        }
-        const checkDigit = (10 - (sum % 10)) % 10;
-        return barcodeWithoutCheck + checkDigit;
+        let code = '';
+        do {
+            const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
+            const barcodeWithoutCheck = '880' + randomDigits;
+            let sum = 0;
+            for (let i = 0; i < 12; i++) {
+                const digit = parseInt(barcodeWithoutCheck[i]);
+                sum += (i % 2 === 0) ? digit : digit * 3;
+            }
+            const checkDigit = (10 - (sum % 10)) % 10;
+            code = barcodeWithoutCheck + checkDigit;
+        } while (products.some(p => p.barcode === code));
+        return code;
     };
 
     // Form fields
@@ -218,28 +222,83 @@ const Products = () => {
                 });
             }
         } catch (err) {
-            alert('Failed to save product. Ensure SKU and Barcode are unique.');
+            const errorMsg = err.response?.data?.errors 
+                ? Object.values(err.response.data.errors).flat().join('\n')
+                : (err.response?.data?.message || err.response?.data?.error || 'Failed to save product. Ensure SKU and Barcode are unique.');
+            alert(errorMsg);
         }
     };
 
     const startProductEdit = (prod) => {
         setEditingProduct(prod);
+
+        const parseObj = (val) => {
+            if (!val) return {};
+            if (typeof val === 'object' && val !== null) return val;
+            if (typeof val === 'string') {
+                try { return JSON.parse(val); } catch (e) { return {}; }
+            }
+            return {};
+        };
+
+        const parseArrStr = (val) => {
+            if (!val) return '';
+            if (Array.isArray(val)) return val.join(', ');
+            if (typeof val === 'string') {
+                if (val.trim().startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(val);
+                        if (Array.isArray(parsed)) return parsed.join(', ');
+                    } catch (e) {}
+                }
+                return val;
+            }
+            return '';
+        };
+
+        const sizeStock = parseObj(prod.size_stock);
+        const colorStock = parseObj(prod.color_stock);
+        const varStock = parseObj(prod.variation_stock);
+
+        let sizesStr = parseArrStr(prod.sizes);
+        let colorsStr = parseArrStr(prod.colors);
+
+        if (!sizesStr && Object.keys(sizeStock).length > 0) {
+            sizesStr = Object.keys(sizeStock).join(', ');
+        }
+        if (!colorsStr && Object.keys(colorStock).length > 0) {
+            colorsStr = Object.keys(colorStock).join(', ');
+        }
+        if (Object.keys(varStock).length > 0) {
+            const extColors = new Set();
+            const extSizes = new Set();
+            Object.keys(varStock).forEach(k => {
+                const parts = k.split(' - ');
+                if (parts.length === 2) {
+                    if (parts[0]) extColors.add(parts[0].trim());
+                    if (parts[1]) extSizes.add(parts[1].trim());
+                }
+            });
+            if (!colorsStr && extColors.size > 0) colorsStr = Array.from(extColors).join(', ');
+            if (!sizesStr && extSizes.size > 0) sizesStr = Array.from(extSizes).join(', ');
+        }
+
         setProdForm({
-            name: prod.name,
-            sku: prod.sku,
+            name: prod.name || '',
+            sku: prod.sku || '',
             barcode: prod.barcode || '',
             category_id: prod.category_id || '',
             brand_id: prod.brand_id || '',
-            purchase_price: prod.purchase_price,
-            selling_price: prod.selling_price,
+            purchase_price: prod.purchase_price || '',
+            selling_price: prod.selling_price || '',
             sale_price: prod.sale_price || '',
-            quantity: prod.quantity,
-            low_stock_warning: prod.low_stock_warning,
-            sizes: prod.sizes ? prod.sizes.join(', ') : '',
-            colors: prod.colors ? prod.colors.join(', ') : '',
-            size_stock: prod.size_stock || {},
-            color_stock: prod.color_stock || {},
-            variation_stock: prod.variation_stock || {},
+            quantity: prod.quantity || 0,
+            low_stock_warning: prod.low_stock_warning || 0,
+            sizes: sizesStr,
+            colors: colorsStr,
+            size_stock: sizeStock,
+            color_stock: colorStock,
+            variation_stock: varStock,
             image: null
         });
         setProductModalOpen(true);
@@ -374,22 +433,90 @@ const Products = () => {
             accessor: 'quantity',
             render: (val, row) => {
                 const isLow = val <= row.low_stock_warning;
+                const hasSizeStock = row.size_stock && Object.keys(row.size_stock).length > 0;
+                const hasColorStock = row.color_stock && Object.keys(row.color_stock).length > 0;
+                const hasVarStock = row.variation_stock && Object.keys(row.variation_stock).length > 0;
+
                 return (
-                    <div>
-                        <span className={`font-extrabold ${isLow ? 'text-rose-600 dark:text-rose-455' : 'text-slate-800 dark:text-white'}`}>
-                            {val} Units
-                        </span>
-                        {row.size_stock && Object.keys(row.size_stock).length > 0 && (
-                            <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Sizes: {Object.entries(row.size_stock).map(([size, qty]) => `${size}: ${qty}`).join(' | ')}
+                    <div className="space-y-1.5 py-1 min-w-[200px]">
+                        <div className="flex items-center gap-2">
+                            <span className={`font-extrabold text-sm ${isLow ? 'text-rose-600 dark:text-rose-400' : 'text-slate-800 dark:text-white'}`}>
+                                {val} Units
                             </span>
+                            {isLow && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 uppercase">
+                                    Low Stock
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Remaining Sizes Badges */}
+                        {hasSizeStock && (
+                            <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[42px]">Sizes:</span>
+                                {Object.entries(row.size_stock).map(([size, qty]) => (
+                                    <span 
+                                        key={size} 
+                                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                                            qty > 0 
+                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800' 
+                                                : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 opacity-60 line-through'
+                                        }`}
+                                    >
+                                        {size}: <span className="font-extrabold">{qty}</span>
+                                    </span>
+                                ))}
+                            </div>
                         )}
-                        {row.color_stock && Object.keys(row.color_stock).length > 0 && (
-                            <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                Colors: {Object.entries(row.color_stock).map(([color, qty]) => `${color}: ${qty}`).join(' | ')}
-                            </span>
+
+                        {/* Remaining Colors Badges */}
+                        {hasColorStock && (
+                            <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[42px]">Colors:</span>
+                                {Object.entries(row.color_stock).map(([color, qty]) => (
+                                    <span 
+                                        key={color} 
+                                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                                            qty > 0 
+                                                ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/50 dark:text-sky-300 dark:border-sky-800' 
+                                                : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 opacity-60 line-through'
+                                        }`}
+                                    >
+                                        {color}: <span className="font-extrabold">{qty}</span>
+                                    </span>
+                                ))}
+                            </div>
                         )}
-                        {isLow && <span className="block text-[8px] font-bold text-rose-500 uppercase mt-0.5">Low Stock Alert</span>}
+
+                        {/* Remaining Variations Badges (e.g. Red - S: 5) */}
+                        {hasVarStock && (
+                            <div className="flex flex-wrap items-center gap-1">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider min-w-[42px]">Variants:</span>
+                                {Object.entries(row.variation_stock).map(([varKey, qty]) => (
+                                    <span 
+                                        key={varKey} 
+                                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition ${
+                                            qty > 0 
+                                                ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800' 
+                                                : 'bg-slate-100 text-slate-400 border-slate-200 dark:bg-slate-800 dark:border-slate-700 opacity-60 line-through'
+                                        }`}
+                                    >
+                                        {varKey}: <span className="font-extrabold">{qty}</span>
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+
+                        {!hasSizeStock && !hasColorStock && !hasVarStock && row.sizes && row.sizes.length > 0 && (
+                            <div className="text-[10px] text-slate-500">
+                                Available Sizes: {row.sizes.join(', ')}
+                            </div>
+                        )}
+                        {!hasSizeStock && !hasColorStock && !hasVarStock && row.colors && row.colors.length > 0 && (
+                            <div className="text-[10px] text-slate-500">
+                                Available Colors: {row.colors.join(', ')}
+                            </div>
+                        )}
                     </div>
                 );
             }
