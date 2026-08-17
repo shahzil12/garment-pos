@@ -1,0 +1,28 @@
+# Dependency directories
+**/node_modules/
+**/vendor/
+composer.phar
+
+# Environment & database files
+.env
+.env.*
+!.env.example
+*.sqlite
+*.sqlite-journal
+
+# Storage & Logs
+/backend/storage/*.log
+/backend/storage/app/
+/backend/storage/framework/cache/
+/backend/storage/framework/sessions/
+/backend/storage/framework/views/
+
+# IDEs and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Build outputs
+/frontend/dist/
+/frontend/dist-ssr/
