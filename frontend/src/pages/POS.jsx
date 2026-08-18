@@ -1186,6 +1186,35 @@ const POS = () => {
                                     </div>
                                     <div className="text-center pt-4 border-t border-dashed border-black text-[9px] mt-3">
                                         <p>{settings.receipt_footer || 'Thank you for shopping!'}</p>
+                                        {(settings.easypaisa_account_number || settings.jazzcash_account_number || settings.bank_account_number || settings.account_number) && (
+                                            <div className="border-t border-dashed border-black pt-2 mt-2 text-center text-[9px] space-y-1">
+                                                <p className="font-bold uppercase tracking-wider">Pay Invoice Online</p>
+
+                                                {settings.easypaisa_account_number && (
+                                                    <div>
+                                                        <p className="font-semibold">EasyPaisa</p>
+                                                        {settings.easypaisa_account_title && <p>Title: {settings.easypaisa_account_title}</p>}
+                                                        <p>Acc #: {settings.easypaisa_account_number}</p>
+                                                    </div>
+                                                )}
+
+                                                {settings.jazzcash_account_number && (
+                                                    <div>
+                                                        <p className="font-semibold">JazzCash</p>
+                                                        {settings.jazzcash_account_title && <p>Title: {settings.jazzcash_account_title}</p>}
+                                                        <p>Acc #: {settings.jazzcash_account_number}</p>
+                                                    </div>
+                                                )}
+
+                                                {(settings.bank_account_number || settings.account_number) && (
+                                                    <div>
+                                                        <p className="font-semibold">{settings.bank_name || 'Bank Transfer'}</p>
+                                                        {(settings.bank_account_title || settings.account_title) && <p>Title: {settings.bank_account_title || settings.account_title}</p>}
+                                                        <p>Acc #: {settings.bank_account_number || settings.account_number}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -1282,6 +1311,43 @@ const POS = () => {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Online Payment Details Footer */}
+                                    {(settings.easypaisa_account_number || settings.jazzcash_account_number || settings.bank_account_number || settings.account_number) && (
+                                        <div className="border-t border-slate-300 pt-3 mt-4 text-left">
+                                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                                Pay Invoice Online / Bank Details
+                                            </h4>
+                                            <div className="grid grid-cols-3 gap-3 text-[10px]">
+                                                {/* EasyPaisa */}
+                                                {(settings.easypaisa_account_number || settings.easypaisa_account_title) && (
+                                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                                                        <p className="font-bold text-slate-800 border-b border-slate-200 pb-0.5 mb-1">EasyPaisa</p>
+                                                        {settings.easypaisa_account_title && <p><span className="text-slate-500">Title:</span> {settings.easypaisa_account_title}</p>}
+                                                        {settings.easypaisa_account_number && <p><span className="text-slate-500">Acc #:</span> {settings.easypaisa_account_number}</p>}
+                                                    </div>
+                                                )}
+
+                                                {/* JazzCash */}
+                                                {(settings.jazzcash_account_number || settings.jazzcash_account_title) && (
+                                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                                                        <p className="font-bold text-slate-800 border-b border-slate-200 pb-0.5 mb-1">JazzCash</p>
+                                                        {settings.jazzcash_account_title && <p><span className="text-slate-500">Title:</span> {settings.jazzcash_account_title}</p>}
+                                                        {settings.jazzcash_account_number && <p><span className="text-slate-500">Acc #:</span> {settings.jazzcash_account_number}</p>}
+                                                    </div>
+                                                )}
+
+                                                {/* Bank Transfer */}
+                                                {(settings.bank_account_number || settings.account_number || settings.bank_account_title || settings.account_title) && (
+                                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                                                        <p className="font-bold text-slate-800 border-b border-slate-200 pb-0.5 mb-1">{settings.bank_name || 'Bank Transfer'}</p>
+                                                        {(settings.bank_account_title || settings.account_title) && <p><span className="text-slate-500">Title:</span> {settings.bank_account_title || settings.account_title}</p>}
+                                                        {(settings.bank_account_number || settings.account_number) && <p><span className="text-slate-500">IBAN / Acc #:</span> {settings.bank_account_number || settings.account_number}</p>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )
                         )}

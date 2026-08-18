@@ -15,9 +15,12 @@ const Invoices = () => {
     const [search, setSearch] = useState('');
     const [dateFrom, setDateFrom] = useState('');
     const [dateTo, setDateTo] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
     const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
 
     const [selectedInvoice, setSelectedInvoice] = useState(null);
+    const [deleteConfirmInvoice, setDeleteConfirmInvoice] = useState(null);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [printType, setPrintType] = useState('thermal'); // 'thermal' or 'a4'
     const [modalTab, setModalTab] = useState('invoice');
 
@@ -25,6 +28,9 @@ const Invoices = () => {
         setLoading(true);
         try {
             let url = `/pos/invoices?page=${page}&search=${search}&per_page=10`;
+            if (statusFilter && statusFilter !== 'all') {
+                url += `&status=${statusFilter}`;
+            }
             if (dateFrom && dateTo) {
                 url += `&date_from=${dateFrom}&date_to=${dateTo}`;
             }
@@ -45,18 +51,37 @@ const Invoices = () => {
     };
 
     useEffect(() => {
-        fetchInvoices();
-    }, [search, dateFrom, dateTo]);
+        fetchInvoices(1);
+    }, [search, dateFrom, dateTo, statusFilter]);
+
+    const handleDeleteInvoice = async () => {
+        if (!deleteConfirmInvoice) return;
+        setIsDeleting(true);
+        try {
+            const response = await axios.delete(`/pos/invoices/${deleteConfirmInvoice.id}`);
+            if (response.data.status === 'success') {
+                alert('Refunded invoice record deleted successfully!');
+                setDeleteConfirmInvoice(null);
+                fetchInvoices(pagination.current_page);
+            }
+        } catch (err) {
+            alert(err.response?.data?.message || 'Failed to delete refunded invoice.');
+        } finally {
+            setIsDeleting(false);
+        }
+    };
 
     const viewInvoiceDetails = async (id) => {
         try {
             const response = await axios.get(`/pos/invoices/${id}`);
-            if (response.data.status === 'success') {
+            if (response.data?.status === 'success') {
                 setSelectedInvoice(response.data.data);
                 setModalTab('invoice');
+            } else {
+                alert(response.data?.message || 'Failed to load invoice details.');
             }
         } catch (err) {
-            alert('Failed to load invoice details.');
+            alert(err.response?.data?.message || 'Failed to load invoice details.');
         }
     };
 
@@ -374,6 +399,15 @@ const Invoices = () => {
                             <RotateCcw className="w-3.5 h-3.5" />
                         </button>
                     )}
+                    {row.status === 'refunded' && (
+                        <button
+                            onClick={() => setDeleteConfirmInvoice(row)}
+                            className="p-1.5 border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-950/30 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-lg text-red-600 dark:text-red-400 transition"
+                            title="Delete Refunded Invoice Record"
+                        >
+                            <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                    )}
                 </div>
             )
         }
@@ -409,6 +443,15 @@ const Invoices = () => {
                 csvFileName="sales_invoices.csv"
                 filterComponent={
                     <div className="flex gap-2 flex-wrap items-center">
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="px-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 cursor-pointer"
+                        >
+                            <option value="all">Status: All</option>
+                            <option value="completed">Status: Completed</option>
+                            <option value="refunded">Status: Refunded</option>
+                        </select>
                         <input
                             type="date"
                             value={dateFrom}
@@ -521,6 +564,35 @@ const Invoices = () => {
                                     </div>
                                     <div className="text-center pt-4 border-t border-dashed border-black text-[9px] mt-3">
                                         <p>{settings.receipt_footer || 'Thank you for shopping!'}</p>
+                                        {(settings.easypaisa_account_number || settings.jazzcash_account_number || settings.bank_account_number || settings.account_number) && (
+                                            <div className="border-t border-dashed border-black pt-2 mt-2 text-center text-[9px] space-y-1">
+                                                <p className="font-bold uppercase tracking-wider">Pay Invoice Online</p>
+
+                                                {settings.easypaisa_account_number && (
+                                                    <div>
+                                                        <p className="font-semibold">EasyPaisa</p>
+                                                        {settings.easypaisa_account_title && <p>Title: {settings.easypaisa_account_title}</p>}
+                                                        <p>Acc #: {settings.easypaisa_account_number}</p>
+                                                    </div>
+                                                )}
+
+                                                {settings.jazzcash_account_number && (
+                                                    <div>
+                                                        <p className="font-semibold">JazzCash</p>
+                                                        {settings.jazzcash_account_title && <p>Title: {settings.jazzcash_account_title}</p>}
+                                                        <p>Acc #: {settings.jazzcash_account_number}</p>
+                                                    </div>
+                                                )}
+
+                                                {(settings.bank_account_number || settings.account_number) && (
+                                                    <div>
+                                                        <p className="font-semibold">{settings.bank_name || 'Bank Transfer'}</p>
+                                                        {(settings.bank_account_title || settings.account_title) && <p>Title: {settings.bank_account_title || settings.account_title}</p>}
+                                                        <p>Acc #: {settings.bank_account_number || settings.account_number}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ) : (
@@ -617,6 +689,43 @@ const Invoices = () => {
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Online Payment Details Footer */}
+                                    {(settings.easypaisa_account_number || settings.jazzcash_account_number || settings.bank_account_number || settings.account_number) && (
+                                        <div className="border-t border-slate-300 pt-3 mt-4 text-left">
+                                            <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                                                Pay Invoice Online / Bank Details
+                                            </h4>
+                                            <div className="grid grid-cols-3 gap-3 text-[10px]">
+                                                {/* EasyPaisa */}
+                                                {(settings.easypaisa_account_number || settings.easypaisa_account_title) && (
+                                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                                                        <p className="font-bold text-slate-800 border-b border-slate-200 pb-0.5 mb-1">EasyPaisa</p>
+                                                        {settings.easypaisa_account_title && <p><span className="text-slate-500">Title:</span> {settings.easypaisa_account_title}</p>}
+                                                        {settings.easypaisa_account_number && <p><span className="text-slate-500">Acc #:</span> {settings.easypaisa_account_number}</p>}
+                                                    </div>
+                                                )}
+
+                                                {/* JazzCash */}
+                                                {(settings.jazzcash_account_number || settings.jazzcash_account_title) && (
+                                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                                                        <p className="font-bold text-slate-800 border-b border-slate-200 pb-0.5 mb-1">JazzCash</p>
+                                                        {settings.jazzcash_account_title && <p><span className="text-slate-500">Title:</span> {settings.jazzcash_account_title}</p>}
+                                                        {settings.jazzcash_account_number && <p><span className="text-slate-500">Acc #:</span> {settings.jazzcash_account_number}</p>}
+                                                    </div>
+                                                )}
+
+                                                {/* Bank Transfer */}
+                                                {(settings.bank_account_number || settings.account_number || settings.bank_account_title || settings.account_title) && (
+                                                    <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg">
+                                                        <p className="font-bold text-slate-800 border-b border-slate-200 pb-0.5 mb-1">{settings.bank_name || 'Bank Transfer'}</p>
+                                                        {(settings.bank_account_title || settings.account_title) && <p><span className="text-slate-500">Title:</span> {settings.bank_account_title || settings.account_title}</p>}
+                                                        {(settings.bank_account_number || settings.account_number) && <p><span className="text-slate-500">IBAN / Acc #:</span> {settings.bank_account_number || settings.account_number}</p>}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>
@@ -861,6 +970,54 @@ const Invoices = () => {
                             >
                                 <Save className="w-4 h-4" />
                                 <span>{isSavingEdit ? 'Recalculating & Saving...' : 'Save & Update Line Items'}</span>
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Modal: Delete Refunded Invoice Confirmation */}
+            <Modal
+                isOpen={deleteConfirmInvoice !== null}
+                onClose={() => setDeleteConfirmInvoice(null)}
+                title="Delete Refunded Invoice Record"
+                size="md"
+            >
+                {deleteConfirmInvoice && (
+                    <div className="space-y-4">
+                        <div className="p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-xl flex items-start gap-3">
+                            <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                            <div>
+                                <h4 className="font-bold text-red-800 dark:text-red-300 text-sm">Permanent Removal Confirmation</h4>
+                                <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                                    Are you sure you want to permanently remove this refunded invoice record?
+                                </p>
+                                <p className="text-xs font-mono font-bold text-red-900 dark:text-red-200 mt-2">
+                                    Invoice #: {deleteConfirmInvoice.invoice_number}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                            This action will safely remove the refunded invoice record from active directory listings.
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-3 border-t dark:border-slate-800">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteConfirmInvoice(null)}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-semibold transition"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteInvoice}
+                                disabled={isDeleting}
+                                className="px-5 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl text-xs font-semibold shadow-md flex items-center gap-2 transition"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                                <span>{isDeleting ? 'Deleting...' : 'Delete Invoice'}</span>
                             </button>
                         </div>
                     </div>

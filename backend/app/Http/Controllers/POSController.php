@@ -11,6 +11,7 @@ use App\Models\AuditLog;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class POSController extends Controller
 {
@@ -174,37 +175,70 @@ class POSController extends Controller
 
     public function indexInvoices(Request $request)
     {
-        $query = Sale::with(['customer', 'user']);
+        try {
+            $query = Sale::with(['customer', 'user']);
 
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where('invoice_number', 'like', "%{$search}%")
-                  ->orWhereHas('customer', function($q) use ($search) {
-                      $q->where('name', 'like', "%{$search}%");
-                  });
+            if (!Schema::hasColumn('sales', 'deleted_at')) {
+                $query->withoutGlobalScope(\Illuminate\Database\Eloquent\SoftDeletingScope::class);
+            }
+
+            if ($request->filled('search')) {
+                $search = $request->search;
+                $query->where(function($sub) use ($search) {
+                    $sub->where('invoice_number', 'like', "%{$search}%")
+                        ->orWhereHas('customer', function($q) use ($search) {
+                            $q->where('name', 'like', "%{$search}%");
+                        });
+                });
+            }
+
+            if ($request->filled('status') && $request->status !== 'all') {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->filled('date_from') && $request->filled('date_to')) {
+                $from = Carbon::parse($request->date_from)->startOfDay();
+                $to = Carbon::parse($request->date_to)->endOfDay();
+                $query->whereBetween('sale_date', [$from, $to]);
+            }
+
+            $invoices = $query->orderBy('sale_date', 'desc')->paginate($request->input('per_page', 10));
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $invoices
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Invoices index error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to load invoices',
+                'error_detail' => $e->getMessage()
+            ], 500);
         }
-
-        if ($request->filled('date_from') && $request->filled('date_to')) {
-            $from = Carbon::parse($request->date_from)->startOfDay();
-            $to = Carbon::parse($request->date_to)->endOfDay();
-            $query->whereBetween('sale_date', [$from, $to]);
-        }
-
-        $invoices = $query->orderBy('sale_date', 'desc')->paginate($request->input('per_page', 10));
-
-        return response()->json([
-            'status' => 'success',
-            'data' => $invoices
-        ]);
     }
 
     public function showInvoice($id)
     {
-        $invoice = Sale::with(['customer', 'user', 'items.product.category', 'items.product.brand'])->findOrFail($id);
-        return response()->json([
-            'status' => 'success',
-            'data' => $invoice
-        ]);
+        try {
+            $query = Sale::with(['customer', 'user', 'items.product.category', 'items.product.brand']);
+            if (!Schema::hasColumn('sales', 'deleted_at')) {
+                $query->withoutGlobalScope(\Illuminate\Database\Eloquent\SoftDeletingScope::class);
+            }
+            $invoice = $query->findOrFail($id);
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $invoice
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Show invoice error: ' . $e->getMessage());
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Failed to load invoice details.',
+                'error_detail' => $e->getMessage()
+            ], 500);
+        }
     }
 
     public function refundInvoice(Request $request, $id)
@@ -438,6 +472,48 @@ class POSController extends Controller
                 'message' => $e->getMessage()
             ], 422);
         }
+    }
+
+    /**
+     * Delete a refunded invoice record (soft delete)
+     */
+    public function destroyInvoice(Request $request, $id)
+    {
+        $user = $request->user();
+        $userRole = strtolower($user->role ?? '');
+        if (!in_array($userRole, ['admin', 'manager', 'cashier'], true)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized access. Only Admins, Managers, and Cashiers are permitted to delete invoices.'
+            ], 403);
+        }
+
+        $sale = Sale::findOrFail($id);
+
+        if ($sale->status !== 'refunded') {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Only refunded invoices can be deleted.'
+            ], 422);
+        }
+
+        DB::transaction(function() use ($sale, $request) {
+            $invoiceNumber = $sale->invoice_number;
+            $sale->delete();
+
+            AuditLog::create([
+                'user_id' => $request->user()->id,
+                'action' => 'Refunded Invoice Deleted',
+                'description' => "Deleted refunded invoice record {$invoiceNumber}",
+                'ip_address' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Refunded invoice record deleted successfully'
+        ]);
     }
 }
 

@@ -4,10 +4,22 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Support\Facades\Schema;
 
 class Sale extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
+
+    protected static function booted()
+    {
+        static::addGlobalScope('safe_soft_deletes', function ($builder) {
+            if (!Schema::hasColumn('sales', 'deleted_at')) {
+                $builder->withoutGlobalScope(SoftDeletingScope::class);
+            }
+        });
+    }
 
     protected $fillable = [
         'customer_id',
@@ -48,3 +60,4 @@ class Sale extends Model
         return $this->hasMany(SaleItem::class);
     }
 }
+

@@ -24,7 +24,7 @@ import Settings from './pages/Settings';
 // Protected Route Guard Component
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const { isAuthenticated, loading, role } = useAuth();
-    const { settings } = useSettings();
+    const { settings = {} } = useSettings() || {};
     const location = useLocation();
 
     if (loading) {

@@ -45,7 +45,7 @@ const Dashboard = () => {
     const fetchDashboardData = async () => {
         try {
             const response = await axios.get('/dashboard');
-            if (response.data.status === 'success') {
+            if (response.data?.status === 'success' && response.data?.data) {
                 setData(response.data.data);
             }
         } catch (error) {
@@ -70,7 +70,19 @@ const Dashboard = () => {
         );
     }
 
-    const { stats, low_stock_alerts, recent_sales, top_selling, sales_chart } = data || {};
+    const stats = data?.stats || {
+        today_sales: 0,
+        today_profit: 0,
+        today_expenses: 0,
+        monthly_sales: 0,
+        monthly_profit: 0,
+        monthly_expenses: 0,
+        low_stock_count: 0,
+    };
+    const low_stock_alerts = data?.low_stock_alerts || [];
+    const recent_sales = data?.recent_sales || [];
+    const top_selling = data?.top_selling || [];
+    const sales_chart = data?.sales_chart || [];
 
     // Chart.js Line Chart Data
     const lineChartData = {

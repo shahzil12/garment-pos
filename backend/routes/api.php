@@ -79,6 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/pos/invoices/{id}', [POSController::class, 'showInvoice']);
     Route::put('/pos/invoices/{id}/items', [POSController::class, 'updateInvoiceItems'])->middleware('can.edit.invoice');
     Route::post('/pos/invoices/{id}/refund', [POSController::class, 'refundInvoice']);
+    Route::delete('/pos/invoices/{id}', [POSController::class, 'destroyInvoice']);
 
     // Expenses
     Route::get('/expenses/categories', [ExpenseController::class, 'indexCategories']);

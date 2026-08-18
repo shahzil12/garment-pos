@@ -16,6 +16,15 @@ export const SettingsProvider = ({ children }) => {
         shop_address: '',
         receipt_header: '',
         receipt_footer: '',
+        account_title: '',
+        account_number: '',
+        easypaisa_account_title: '',
+        easypaisa_account_number: '',
+        jazzcash_account_title: '',
+        jazzcash_account_number: '',
+        bank_name: '',
+        bank_account_title: '',
+        bank_account_number: '',
         cashier_can_access_dashboard: '1',
         cashier_can_access_pos: '1',
         cashier_can_access_products: '1',
@@ -66,4 +75,5 @@ export const SettingsProvider = ({ children }) => {
     );
 };
 
-export const useSettings = () => useContext(SettingsContext);
+const defaultFormatCurrency = (amount) => `Rs. ${(parseFloat(amount) || 0).toFixed(2)}`;
+export const useSettings = () => useContext(SettingsContext) || { settings: {}, settingsLoading: false, refreshSettings: () => {}, updateSettingsState: () => {}, formatCurrency: defaultFormatCurrency };

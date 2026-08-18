@@ -17,6 +17,15 @@ const Settings = () => {
         shop_address: '',
         receipt_header: '',
         receipt_footer: '',
+        account_title: '',
+        account_number: '',
+        easypaisa_account_title: '',
+        easypaisa_account_number: '',
+        jazzcash_account_title: '',
+        jazzcash_account_number: '',
+        bank_name: '',
+        bank_account_title: '',
+        bank_account_number: '',
         cashier_can_access_dashboard: '1',
         cashier_can_access_pos: '1',
         cashier_can_access_products: '1',
@@ -47,6 +56,15 @@ const Settings = () => {
                 shop_address: globalSettings.shop_address || '',
                 receipt_header: globalSettings.receipt_header || '',
                 receipt_footer: globalSettings.receipt_footer || '',
+                account_title: globalSettings.account_title || '',
+                account_number: globalSettings.account_number || '',
+                easypaisa_account_title: globalSettings.easypaisa_account_title || '',
+                easypaisa_account_number: globalSettings.easypaisa_account_number || '',
+                jazzcash_account_title: globalSettings.jazzcash_account_title || '',
+                jazzcash_account_number: globalSettings.jazzcash_account_number || '',
+                bank_name: globalSettings.bank_name || '',
+                bank_account_title: globalSettings.bank_account_title || '',
+                bank_account_number: globalSettings.bank_account_number || '',
                 cashier_can_access_dashboard: globalSettings.cashier_can_access_dashboard !== undefined ? globalSettings.cashier_can_access_dashboard : '1',
                 cashier_can_access_pos: globalSettings.cashier_can_access_pos !== undefined ? globalSettings.cashier_can_access_pos : '1',
                 cashier_can_access_products: globalSettings.cashier_can_access_products !== undefined ? globalSettings.cashier_can_access_products : '1',
@@ -320,6 +338,94 @@ const Settings = () => {
                                     className="w-full px-4 py-2 border dark:border-slate-800 dark:bg-slate-955 rounded-xl text-sm focus:outline-none"
                                     placeholder="Thank you for shopping!"
                                 />
+                            </div>
+                        </div>
+
+                        <div className="border-t dark:border-slate-800 pt-3 space-y-3">
+                            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">Online Payment Methods Details</h4>
+                            
+                            {/* EasyPaisa */}
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border dark:border-slate-800">
+                                <div>
+                                    <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">EasyPaisa Account Title</label>
+                                    <input
+                                        type="text"
+                                        value={shopForm.easypaisa_account_title}
+                                        onChange={(e) => setShopForm({ ...shopForm, easypaisa_account_title: e.target.value })}
+                                        className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-900 rounded-lg text-xs focus:outline-none"
+                                        placeholder="e.g. John Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">EasyPaisa Account / Mobile #</label>
+                                    <input
+                                        type="text"
+                                        value={shopForm.easypaisa_account_number}
+                                        onChange={(e) => setShopForm({ ...shopForm, easypaisa_account_number: e.target.value })}
+                                        className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-900 rounded-lg text-xs focus:outline-none"
+                                        placeholder="e.g. 03001234567"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* JazzCash */}
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border dark:border-slate-800">
+                                <div>
+                                    <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">JazzCash Account Title</label>
+                                    <input
+                                        type="text"
+                                        value={shopForm.jazzcash_account_title}
+                                        onChange={(e) => setShopForm({ ...shopForm, jazzcash_account_title: e.target.value })}
+                                        className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-900 rounded-lg text-xs focus:outline-none"
+                                        placeholder="e.g. John Doe"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">JazzCash Account / Mobile #</label>
+                                    <input
+                                        type="text"
+                                        value={shopForm.jazzcash_account_number}
+                                        onChange={(e) => setShopForm({ ...shopForm, jazzcash_account_number: e.target.value })}
+                                        className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-900 rounded-lg text-xs focus:outline-none"
+                                        placeholder="e.g. 03007654321"
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Bank Transfer */}
+                            <div className="space-y-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border dark:border-slate-800">
+                                <div>
+                                    <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Bank Name</label>
+                                    <input
+                                        type="text"
+                                        value={shopForm.bank_name}
+                                        onChange={(e) => setShopForm({ ...shopForm, bank_name: e.target.value })}
+                                        className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-900 rounded-lg text-xs focus:outline-none"
+                                        placeholder="e.g. Meezan Bank / HBL"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Bank Account Title</label>
+                                        <input
+                                            type="text"
+                                            value={shopForm.bank_account_title || shopForm.account_title}
+                                            onChange={(e) => setShopForm({ ...shopForm, bank_account_title: e.target.value, account_title: e.target.value })}
+                                            className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-900 rounded-lg text-xs focus:outline-none"
+                                            placeholder="e.g. Garment POS Ltd."
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[11px] font-bold uppercase text-slate-500 mb-1">Bank Account / IBAN</label>
+                                        <input
+                                            type="text"
+                                            value={shopForm.bank_account_number || shopForm.account_number}
+                                            onChange={(e) => setShopForm({ ...shopForm, bank_account_number: e.target.value, account_number: e.target.value })}
+                                            className="w-full px-3 py-1.5 border dark:border-slate-800 dark:bg-slate-900 rounded-lg text-xs focus:outline-none"
+                                            placeholder="e.g. PK36MEZN000123456789"
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
