@@ -888,7 +888,7 @@ const POS = () => {
                                 min="0"
                                 value={cartDiscount}
                                 onChange={(e) => setCartDiscount(Math.max(0, parseFloat(e.target.value) || 0))}
-                                className="w-full px-2 py-1 bg-white dark:bg-slate-955 border border-slate-200 dark:border-slate-800 rounded-lg text-right font-bold focus:outline-none text-slate-900 dark:text-slate-100"
+                                className="w-full px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg text-right font-bold focus:outline-none text-slate-900 dark:text-slate-100"
                                 placeholder="0"
                             />
                         </div>

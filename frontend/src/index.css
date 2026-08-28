@@ -8,17 +8,57 @@
 
 /* Global Form Input Styles for High Contrast */
 input, select, textarea {
-  color: #0f172a !important; /* text-slate-900 */
+  color: #0f172a;
 }
 
 input::placeholder, select::placeholder, textarea::placeholder {
-  color: #94a3b8 !important; /* placeholder-slate-400 */
+  color: #94a3b8;
 }
 
 .dark input, .dark select, .dark textarea {
-  color: #f8fafc !important; /* text-slate-50 */
+  background-color: #020617 !important; /* Dark slate-950 background for input fields in dark mode */
+  color: #f8fafc !important; /* Crisp white/light-gray text for high contrast */
+  border-color: #1e293b;
 }
 
 .dark input::placeholder, .dark select::placeholder, .dark textarea::placeholder {
-  color: #64748b !important; /* placeholder-slate-500 */
+  color: #64748b !important; /* Visible placeholder contrast */
 }
+
+/* Stepper/spinner arrows visibility for dark mode number inputs */
+.dark input[type="number"]::-webkit-inner-spin-button,
+.dark input[type="number"]::-webkit-outer-spin-button {
+  filter: invert(1) opacity(0.75);
+}
+
+/* Dark mode focus ring styling */
+.dark input:focus, .dark select:focus, .dark textarea:focus {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.25);
+  outline: none;
+}
+
+/* Dropdown Menu Option Styles for High Contrast in Dark Mode */
+select option {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+.dark select option,
+.dark option,
+select option:where(.dark *) {
+  background-color: #0f172a !important; /* Dark navy/slate background matching dark modal */
+  color: #f8fafc !important; /* White/light-gray text for clear visibility */
+}
+
+.dark select option:disabled,
+select option:disabled:where(.dark *) {
+  color: #64748b !important;
+}
+
+/* Utility fallback for dark:bg-slate-955 */
+.dark\:bg-slate-955:where(.dark, .dark *) {
+  background-color: #020617 !important;
+}
+
+

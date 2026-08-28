@@ -4,7 +4,7 @@ import DataTable from '../components/DataTable';
 import Modal from '../components/Modal';
 import Barcode from '../components/Barcode';
 import { useSettings } from '../context/SettingsContext';
-import { Plus, Edit, Trash2, Tag, Layers, Shirt, Image, Barcode as BarcodeIcon } from 'lucide-react';
+import { Plus, Edit, Trash2, Tag, Layers, Shirt, Image, Barcode as BarcodeIcon, Copy } from 'lucide-react';
 
 const Products = () => {
     const { formatCurrency } = useSettings();
@@ -258,7 +258,7 @@ const Products = () => {
 
         const sizeStock = parseObj(prod.size_stock);
         const colorStock = parseObj(prod.color_stock);
-        const varStock = parseObj(prod.variation_stock);
+        let varStock = parseObj(prod.variation_stock);
 
         let sizesStr = parseArrStr(prod.sizes);
         let colorsStr = parseArrStr(prod.colors);
@@ -283,17 +283,200 @@ const Products = () => {
             if (!sizesStr && extSizes.size > 0) sizesStr = Array.from(extSizes).join(', ');
         }
 
+        const sizeArr = sizesStr ? sizesStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const colorArr = colorsStr ? colorsStr.split(',').map(c => c.trim()).filter(Boolean) : [];
+
+        let variationKeys = [];
+        if (sizeArr.length > 0 && colorArr.length > 0) {
+            colorArr.forEach(c => sizeArr.forEach(s => variationKeys.push(`${c} - ${s}`)));
+        } else if (sizeArr.length > 0) {
+            variationKeys = sizeArr;
+        } else if (colorArr.length > 0) {
+            variationKeys = colorArr;
+        }
+
+        const rawQty = prod.quantity !== undefined && prod.quantity !== null ? prod.quantity : (prod.stock_quantity !== undefined && prod.stock_quantity !== null ? prod.stock_quantity : (prod.stock !== undefined && prod.stock !== null ? prod.stock : 0));
+
+        if (variationKeys.length > 0) {
+            const updatedVarStock = { ...varStock };
+            variationKeys.forEach(k => {
+                if (updatedVarStock[k] === undefined || updatedVarStock[k] === null) {
+                    if (sizeArr.length > 0 && colorArr.length > 0) {
+                        const parts = k.split(' - ');
+                        const c = parts[0]?.trim();
+                        const s = parts[1]?.trim();
+                        if (c && colorStock[c] !== undefined) {
+                            updatedVarStock[k] = colorStock[c];
+                        } else if (s && sizeStock[s] !== undefined) {
+                            updatedVarStock[k] = sizeStock[s];
+                        } else {
+                            updatedVarStock[k] = 0;
+                        }
+                    } else if (sizeArr.length > 0 && sizeStock[k] !== undefined) {
+                        updatedVarStock[k] = sizeStock[k];
+                    } else if (colorArr.length > 0 && colorStock[k] !== undefined) {
+                        updatedVarStock[k] = colorStock[k];
+                    } else {
+                        updatedVarStock[k] = 0;
+                    }
+                }
+            });
+            varStock = updatedVarStock;
+        }
+
+        let finalQuantity = rawQty;
+        if (variationKeys.length > 0) {
+            const varTotal = variationKeys.reduce((sum, k) => sum + (parseInt(varStock[k]) || 0), 0);
+            if (varTotal > 0 || Number(rawQty) === 0) {
+                finalQuantity = varTotal;
+            }
+        }
+
         setProdForm({
             name: prod.name || '',
             sku: prod.sku || '',
             barcode: prod.barcode || '',
             category_id: prod.category_id || '',
             brand_id: prod.brand_id || '',
-            purchase_price: prod.purchase_price || '',
-            selling_price: prod.selling_price || '',
-            sale_price: prod.sale_price || '',
-            quantity: prod.quantity || 0,
-            low_stock_warning: prod.low_stock_warning || 0,
+            purchase_price: prod.purchase_price !== undefined && prod.purchase_price !== null ? prod.purchase_price : '',
+            selling_price: prod.selling_price !== undefined && prod.selling_price !== null ? prod.selling_price : '',
+            sale_price: prod.sale_price !== undefined && prod.sale_price !== null ? prod.sale_price : '',
+            quantity: finalQuantity,
+            low_stock_warning: prod.low_stock_warning !== undefined && prod.low_stock_warning !== null ? prod.low_stock_warning : 0,
+            sizes: sizesStr,
+            colors: colorsStr,
+            size_stock: sizeStock,
+            color_stock: colorStock,
+            variation_stock: varStock,
+            image: null
+        });
+        setProductModalOpen(true);
+    };
+
+    const duplicateProduct = (prod) => {
+        setEditingProduct(null);
+
+        const parseObj = (val) => {
+            if (!val) return {};
+            if (typeof val === 'object' && val !== null) return val;
+            if (typeof val === 'string') {
+                try { return JSON.parse(val); } catch (e) { return {}; }
+            }
+            return {};
+        };
+
+        const parseArrStr = (val) => {
+            if (!val) return '';
+            if (Array.isArray(val)) return val.join(', ');
+            if (typeof val === 'string') {
+                if (val.trim().startsWith('[')) {
+                    try {
+                        const parsed = JSON.parse(val);
+                        if (Array.isArray(parsed)) return parsed.join(', ');
+                    } catch (e) {}
+                }
+                return val;
+            }
+            return '';
+        };
+
+        const sizeStock = parseObj(prod.size_stock);
+        const colorStock = parseObj(prod.color_stock);
+        let varStock = parseObj(prod.variation_stock);
+
+        let sizesStr = parseArrStr(prod.sizes);
+        let colorsStr = parseArrStr(prod.colors);
+
+        if (!sizesStr && Object.keys(sizeStock).length > 0) {
+            sizesStr = Object.keys(sizeStock).join(', ');
+        }
+        if (!colorsStr && Object.keys(colorStock).length > 0) {
+            colorsStr = Object.keys(colorStock).join(', ');
+        }
+        if (Object.keys(varStock).length > 0) {
+            const extColors = new Set();
+            const extSizes = new Set();
+            Object.keys(varStock).forEach(k => {
+                const parts = k.split(' - ');
+                if (parts.length === 2) {
+                    if (parts[0]) extColors.add(parts[0].trim());
+                    if (parts[1]) extSizes.add(parts[1].trim());
+                }
+            });
+            if (!colorsStr && extColors.size > 0) colorsStr = Array.from(extColors).join(', ');
+            if (!sizesStr && extSizes.size > 0) sizesStr = Array.from(extSizes).join(', ');
+        }
+
+        const sizeArr = sizesStr ? sizesStr.split(',').map(s => s.trim()).filter(Boolean) : [];
+        const colorArr = colorsStr ? colorsStr.split(',').map(c => c.trim()).filter(Boolean) : [];
+
+        let variationKeys = [];
+        if (sizeArr.length > 0 && colorArr.length > 0) {
+            colorArr.forEach(c => sizeArr.forEach(s => variationKeys.push(`${c} - ${s}`)));
+        } else if (sizeArr.length > 0) {
+            variationKeys = sizeArr;
+        } else if (colorArr.length > 0) {
+            variationKeys = colorArr;
+        }
+
+        const rawQty = prod.quantity !== undefined && prod.quantity !== null ? prod.quantity : (prod.stock_quantity !== undefined && prod.stock_quantity !== null ? prod.stock_quantity : (prod.stock !== undefined && prod.stock !== null ? prod.stock : 0));
+
+        if (variationKeys.length > 0) {
+            const updatedVarStock = { ...varStock };
+            variationKeys.forEach(k => {
+                if (updatedVarStock[k] === undefined || updatedVarStock[k] === null) {
+                    if (sizeArr.length > 0 && colorArr.length > 0) {
+                        const parts = k.split(' - ');
+                        const c = parts[0]?.trim();
+                        const s = parts[1]?.trim();
+                        if (c && colorStock[c] !== undefined) {
+                            updatedVarStock[k] = colorStock[c];
+                        } else if (s && sizeStock[s] !== undefined) {
+                            updatedVarStock[k] = sizeStock[s];
+                        } else {
+                            updatedVarStock[k] = 0;
+                        }
+                    } else if (sizeArr.length > 0 && sizeStock[k] !== undefined) {
+                        updatedVarStock[k] = sizeStock[k];
+                    } else if (colorArr.length > 0 && colorStock[k] !== undefined) {
+                        updatedVarStock[k] = colorStock[k];
+                    } else {
+                        updatedVarStock[k] = 0;
+                    }
+                }
+            });
+            varStock = updatedVarStock;
+        }
+
+        let finalQuantity = rawQty;
+        if (variationKeys.length > 0) {
+            const varTotal = variationKeys.reduce((sum, k) => sum + (parseInt(varStock[k]) || 0), 0);
+            if (varTotal > 0 || Number(rawQty) === 0) {
+                finalQuantity = varTotal;
+            }
+        }
+
+        const baseSku = prod.sku ? `${prod.sku}-COPY` : 'SKU-COPY';
+        let candidateSku = baseSku;
+        let counter = 1;
+        while (products.some(p => p.sku === candidateSku)) {
+            counter++;
+            candidateSku = `${baseSku}-${counter}`;
+        }
+
+        const newBarcode = generateEan13();
+
+        setProdForm({
+            name: prod.name ? `${prod.name} - Copy` : '',
+            sku: candidateSku,
+            barcode: newBarcode,
+            category_id: prod.category_id || '',
+            brand_id: prod.brand_id || '',
+            purchase_price: prod.purchase_price !== undefined && prod.purchase_price !== null ? prod.purchase_price : '',
+            selling_price: prod.selling_price !== undefined && prod.selling_price !== null ? prod.selling_price : '',
+            sale_price: prod.sale_price !== undefined && prod.sale_price !== null ? prod.sale_price : '',
+            quantity: finalQuantity,
+            low_stock_warning: prod.low_stock_warning !== undefined && prod.low_stock_warning !== null ? prod.low_stock_warning : 0,
             sizes: sizesStr,
             colors: colorsStr,
             size_stock: sizeStock,
@@ -529,8 +712,16 @@ const Products = () => {
                     <button
                         onClick={() => startProductEdit(row)}
                         className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-550 hover:text-indigo-600 transition"
+                        title="Edit Product"
                     >
                         <Edit className="w-4 h-4" />
+                    </button>
+                    <button
+                        onClick={() => duplicateProduct(row)}
+                        className="p-1.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-lg text-slate-500 hover:text-indigo-600 transition"
+                        title="Duplicate Product"
+                    >
+                        <Copy className="w-4 h-4" />
                     </button>
                     <button
                         onClick={() => { setSelectedProductForBarcode(row); setBarcodeModalOpen(true); }}
@@ -1007,11 +1198,11 @@ const Products = () => {
                                                 <input
                                                     type="number"
                                                     min="0"
-                                                    value={prodForm.variation_stock?.[key] ?? ''}
+                                                    value={prodForm.variation_stock?.[key] ?? 0}
                                                     onChange={(e) => {
-                                                        const val = parseInt(e.target.value) || 0;
+                                                        const val = e.target.value === '' ? '' : (parseInt(e.target.value) || 0);
                                                         const newVarStock = { ...prodForm.variation_stock, [key]: val };
-                                                        const totalQty = Object.values(newVarStock).reduce((sum, v) => sum + v, 0);
+                                                        const totalQty = Object.values(newVarStock).reduce((sum, v) => sum + (parseInt(v) || 0), 0);
                                                         setProdForm({
                                                             ...prodForm,
                                                             variation_stock: newVarStock,
